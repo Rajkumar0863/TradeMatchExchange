@@ -15,7 +15,7 @@ SELL ORDERS (Min Heap)
           v
 
      Trade History
-```
+``` 
 
 ## Components
 
