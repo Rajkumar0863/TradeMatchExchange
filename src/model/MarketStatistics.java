@@ -6,9 +6,14 @@ public class MarketStatistics {
 
     private int totalTrades;
     private int totalVolume;
+
     private double highestPrice;
     private double lowestPrice;
+
     private double averagePrice;
+
+    private double totalTradedValue;
+    private double vwap;
 
     public MarketStatistics(List<Trade> trades) {
 
@@ -25,27 +30,50 @@ public class MarketStatistics {
 
         for (Trade trade : trades) {
 
-            totalVolume += trade.getQuantity();
+            int quantity = trade.getQuantity();
 
             double price = trade.getExecutionPrice();
 
-            highestPrice = Math.max(highestPrice, price);
-            lowestPrice = Math.min(lowestPrice, price);
+            totalVolume += quantity;
+
+            highestPrice =
+                    Math.max(highestPrice, price);
+
+            lowestPrice =
+                    Math.min(lowestPrice, price);
 
             totalPrice += price;
+
+            totalTradedValue +=
+                    (price * quantity);
         }
 
-        averagePrice = totalPrice / totalTrades;
+        averagePrice =
+                totalPrice / totalTrades;
+
+        vwap =
+                totalTradedValue / totalVolume;
     }
 
     @Override
     public String toString() {
 
         return "\n===== MARKET STATISTICS =====" +
+
                 "\nTotal Trades: " + totalTrades +
+
                 "\nTotal Volume: " + totalVolume +
+
                 "\nHighest Price: " + highestPrice +
+
                 "\nLowest Price: " + lowestPrice +
-                "\nAverage Price: " + averagePrice;
+
+                "\nAverage Price: " + averagePrice +
+
+                "\nVWAP: " +
+                String.format("%.2f", vwap) +
+
+                "\nTotal Traded Value: " +
+                String.format("%.2f", totalTradedValue);
     }
 }
