@@ -34,6 +34,15 @@ public class Trade {
         return executionPrice;
     }
 
+    public String toCsvRow() {
+
+        return tradeId + "," +
+                buyOrderId + "," +
+                sellOrderId + "," +
+                quantity + "," +
+                executionPrice;
+    }
+
     @Override
     public String toString() {
 

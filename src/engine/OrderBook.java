@@ -222,4 +222,58 @@ public class OrderBook {
     public List<Trade> getTradeHistory() {
         return tradeHistory;
     }
+
+    public Double getBestBid() {
+
+        if (buyOrders.isEmpty()) {
+            return null;
+        }
+
+        return buyOrders.peek().getPrice();
+    }
+
+    public Double getBestAsk() {
+
+        if (sellOrders.isEmpty()) {
+            return null;
+        }
+
+        return sellOrders.peek().getPrice();
+    }
+
+    public void displayMarketDepth() {
+
+        System.out.println(
+                "\n===== MARKET DEPTH ====="
+        );
+
+        Double bestBid = getBestBid();
+        Double bestAsk = getBestAsk();
+
+        System.out.println(
+                "Best Bid: "
+                        + (bestBid == null ? "None" : bestBid)
+        );
+
+        System.out.println(
+                "Best Ask: "
+                        + (bestAsk == null ? "None" : bestAsk)
+        );
+
+        if (bestBid != null && bestAsk != null) {
+
+            double spread = bestAsk - bestBid;
+
+            System.out.println(
+                    "Spread: "
+                            + spread
+            );
+
+        } else {
+
+            System.out.println(
+                    "Spread: N/A"
+            );
+        }
+    }
 }

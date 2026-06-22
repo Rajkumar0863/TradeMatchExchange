@@ -3,12 +3,15 @@ import model.MarketStatistics;
 import model.Order;
 import model.OrderExecutionType;
 import model.OrderType;
+import utils.TradeExporter;
 
 public class Main {
 
     public static void main(String[] args) {
 
         OrderBook orderBook = new OrderBook();
+
+        // BUY ORDERS
 
         orderBook.addOrder(
                 new Order(
@@ -31,6 +34,8 @@ public class Main {
                         OrderExecutionType.LIMIT
                 )
         );
+
+        // SELL ORDERS
 
         orderBook.addOrder(
                 new Order(
@@ -65,16 +70,24 @@ public class Main {
                 )
         );
 
+        // MATCH ORDERS
+
         orderBook.matchOrders();
+
+        // REMAINING ORDERS
 
         System.out.println("\n===== REMAINING ORDERS =====");
 
         orderBook.printOrderBook();
 
+        // TRADE HISTORY
+
         System.out.println("\n===== TRADE HISTORY =====");
 
         orderBook.getTradeHistory()
                 .forEach(System.out::println);
+
+        // MARKET STATISTICS
 
         MarketStatistics stats =
                 new MarketStatistics(
@@ -82,5 +95,16 @@ public class Main {
                 );
 
         System.out.println(stats);
+
+        // MARKET DEPTH
+
+        orderBook.displayMarketDepth();
+
+        // CSV EXPORT
+
+        TradeExporter.exportTrades(
+                orderBook.getTradeHistory()
+
+        );
     }
 }
