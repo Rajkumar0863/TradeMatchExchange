@@ -111,6 +111,29 @@ public class Main {
 
         orderBook.printOrderBook();
 
+        System.out.println(
+                "\n===== ORDER MODIFICATION ====="
+        );
+
+        orderBook.addOrder(
+                new Order(
+                        "ORD100",
+                        "AAPL",
+                        100,
+                        220,
+                        OrderType.BUY,
+                        OrderExecutionType.LIMIT
+                )
+        );
+
+        orderBook.modifyOrder(
+                "ORD100",
+                150,
+                240
+        );
+
+        orderBook.printOrderBook();
+
         // CSV EXPORT
 
         TradeExporter.exportTrades(

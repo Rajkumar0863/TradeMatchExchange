@@ -315,4 +315,70 @@ public class OrderBook {
 
         return false;
     }
+    public boolean modifyOrder(
+            String orderId,
+            int newQuantity,
+            double newPrice) {
+
+        for (Order order : buyOrders) {
+
+            if (order.getOrderId().equals(orderId)) {
+
+                buyOrders.remove(order);
+
+                Order modifiedOrder =
+                        new Order(
+                                order.getOrderId(),
+                                order.getStockSymbol(),
+                                newQuantity,
+                                newPrice,
+                                order.getOrderType(),
+                                order.getExecutionType()
+                        );
+
+                buyOrders.add(modifiedOrder);
+
+                System.out.println(
+                        "Order Modified: "
+                                + orderId
+                );
+
+                return true;
+            }
+        }
+
+        for (Order order : sellOrders) {
+
+            if (order.getOrderId().equals(orderId)) {
+
+                sellOrders.remove(order);
+
+                Order modifiedOrder =
+                        new Order(
+                                order.getOrderId(),
+                                order.getStockSymbol(),
+                                newQuantity,
+                                newPrice,
+                                order.getOrderType(),
+                                order.getExecutionType()
+                        );
+
+                sellOrders.add(modifiedOrder);
+
+                System.out.println(
+                        "Order Modified: "
+                                + orderId
+                );
+
+                return true;
+            }
+        }
+
+        System.out.println(
+                "Order Not Found: "
+                        + orderId
+        );
+
+        return false;
+    }
 }
