@@ -26,6 +26,14 @@ public class Trade {
         this.timestamp = LocalDateTime.now();
     }
 
+    public int getQuantity() {
+        return quantity;
+    }
+
+    public double getExecutionPrice() {
+        return executionPrice;
+    }
+
     @Override
     public String toString() {
 

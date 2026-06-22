@@ -1,46 +1,65 @@
 import engine.OrderBook;
+import model.MarketStatistics;
 import model.Order;
 import model.OrderExecutionType;
 import model.OrderType;
 
 public class Main {
 
-    public static void main(String[] args)
-            throws InterruptedException {
+    public static void main(String[] args) {
 
-        OrderBook orderBook =
-                new OrderBook();
+        OrderBook orderBook = new OrderBook();
 
-        orderBook.addBuyOrder(
+        orderBook.addOrder(
                 new Order(
                         "ORD001",
                         "AAPL",
                         100,
-                        250,
+                        250.0,
                         OrderType.BUY,
                         OrderExecutionType.LIMIT
                 )
         );
 
-        Thread.sleep(1000);
-
-        orderBook.addBuyOrder(
+        orderBook.addOrder(
                 new Order(
                         "ORD002",
                         "AAPL",
                         100,
-                        250,
+                        220.0,
                         OrderType.BUY,
                         OrderExecutionType.LIMIT
                 )
         );
 
-        orderBook.addSellOrder(
+        orderBook.addOrder(
                 new Order(
                         "ORD003",
                         "AAPL",
-                        100,
-                        240,
+                        40,
+                        190.0,
+                        OrderType.SELL,
+                        OrderExecutionType.LIMIT
+                )
+        );
+
+        orderBook.addOrder(
+                new Order(
+                        "ORD004",
+                        "AAPL",
+                        50,
+                        195.0,
+                        OrderType.SELL,
+                        OrderExecutionType.LIMIT
+                )
+        );
+
+        orderBook.addOrder(
+                new Order(
+                        "ORD005",
+                        "AAPL",
+                        70,
+                        210.0,
                         OrderType.SELL,
                         OrderExecutionType.LIMIT
                 )
@@ -48,6 +67,20 @@ public class Main {
 
         orderBook.matchOrders();
 
-        orderBook.displayTradeHistory();
+        System.out.println("\n===== REMAINING ORDERS =====");
+
+        orderBook.printOrderBook();
+
+        System.out.println("\n===== TRADE HISTORY =====");
+
+        orderBook.getTradeHistory()
+                .forEach(System.out::println);
+
+        MarketStatistics stats =
+                new MarketStatistics(
+                        orderBook.getTradeHistory()
+                );
+
+        System.out.println(stats);
     }
 }

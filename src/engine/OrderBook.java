@@ -202,4 +202,24 @@ public class OrderBook {
             System.out.println(trade);
         }
     }
+
+
+    public void addOrder(Order order) {
+
+        if (order.getOrderType().name().equals("BUY")) {
+            addBuyOrder(order);
+        } else {
+            addSellOrder(order);
+        }
+    }
+
+    public void printOrderBook() {
+
+        displayBuyOrders();
+        displaySellOrders();
+    }
+
+    public List<Trade> getTradeHistory() {
+        return tradeHistory;
+    }
 }
