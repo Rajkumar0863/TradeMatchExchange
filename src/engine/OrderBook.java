@@ -276,4 +276,43 @@ public class OrderBook {
             );
         }
     }
+    public boolean cancelOrder(String orderId) {
+
+        for (Order order : buyOrders) {
+
+            if (order.getOrderId().equals(orderId)) {
+
+                buyOrders.remove(order);
+
+                System.out.println(
+                        "Order Cancelled: "
+                                + orderId
+                );
+
+                return true;
+            }
+        }
+
+        for (Order order : sellOrders) {
+
+            if (order.getOrderId().equals(orderId)) {
+
+                sellOrders.remove(order);
+
+                System.out.println(
+                        "Order Cancelled: "
+                                + orderId
+                );
+
+                return true;
+            }
+        }
+
+        System.out.println(
+                "Order Not Found: "
+                        + orderId
+        );
+
+        return false;
+    }
 }

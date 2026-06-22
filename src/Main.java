@@ -99,11 +99,23 @@ public class Main {
         // MARKET DEPTH
 
         orderBook.displayMarketDepth();
+        System.out.println(
+                "\n===== ORDER CANCELLATION ====="
+        );
+
+        orderBook.cancelOrder("ORD002");
+
+        System.out.println(
+                "\n===== ORDER BOOK AFTER CANCELLATION ====="
+        );
+
+        orderBook.printOrderBook();
 
         // CSV EXPORT
 
         TradeExporter.exportTrades(
                 orderBook.getTradeHistory()
+
 
         );
     }
