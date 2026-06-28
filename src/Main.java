@@ -1,19 +1,31 @@
-import engine.OrderBook;
-import model.MarketStatistics;
 import model.Order;
 import model.OrderExecutionType;
 import model.OrderType;
-import utils.TradeExporter;
+import service.Exchange;
 
 public class Main {
 
     public static void main(String[] args) {
 
-        OrderBook orderBook = new OrderBook();
+        Exchange exchange = new Exchange();
+
+        // CREATE STOCK ORDER BOOKS
+
+        exchange.addStock("AAPL");
+        exchange.addStock("MSFT");
+        exchange.addStock("TSLA");
+        exchange.addStock("GOOGL");
+
+        exchange.displayStocks();
+
+        // GET AAPL ORDER BOOK
+
+        var aaplBook =
+                exchange.getOrderBook("AAPL");
 
         // BUY ORDERS
 
-        orderBook.addOrder(
+        aaplBook.addOrder(
                 new Order(
                         "ORD001",
                         "AAPL",
@@ -24,7 +36,7 @@ public class Main {
                 )
         );
 
-        orderBook.addOrder(
+        aaplBook.addOrder(
                 new Order(
                         "ORD002",
                         "AAPL",
@@ -37,7 +49,7 @@ public class Main {
 
         // SELL ORDERS
 
-        orderBook.addOrder(
+        aaplBook.addOrder(
                 new Order(
                         "ORD003",
                         "AAPL",
@@ -48,7 +60,7 @@ public class Main {
                 )
         );
 
-        orderBook.addOrder(
+        aaplBook.addOrder(
                 new Order(
                         "ORD004",
                         "AAPL",
@@ -59,7 +71,7 @@ public class Main {
                 )
         );
 
-        orderBook.addOrder(
+        aaplBook.addOrder(
                 new Order(
                         "ORD005",
                         "AAPL",
@@ -72,74 +84,18 @@ public class Main {
 
         // MATCH ORDERS
 
-        orderBook.matchOrders();
+        aaplBook.matchOrders();
 
-        // REMAINING ORDERS
-
-        System.out.println("\n===== REMAINING ORDERS =====");
-
-        orderBook.printOrderBook();
-
-        // TRADE HISTORY
-
-        System.out.println("\n===== TRADE HISTORY =====");
-
-        orderBook.getTradeHistory()
-                .forEach(System.out::println);
-
-        // MARKET STATISTICS
-
-        MarketStatistics stats =
-                new MarketStatistics(
-                        orderBook.getTradeHistory()
-                );
-
-        System.out.println(stats);
-
-        // MARKET DEPTH
-
-        orderBook.displayMarketDepth();
-        System.out.println(
-                "\n===== ORDER CANCELLATION ====="
-        );
-
-        orderBook.cancelOrder("ORD002");
+        // DISPLAY REMAINING ORDERS
 
         System.out.println(
-                "\n===== ORDER BOOK AFTER CANCELLATION ====="
+                "\n===== AAPL ORDER BOOK ====="
         );
 
-        orderBook.printOrderBook();
+        aaplBook.printOrderBook();
 
-        System.out.println(
-                "\n===== ORDER MODIFICATION ====="
-        );
+        // DISPLAY TRADE HISTORY
 
-        orderBook.addOrder(
-                new Order(
-                        "ORD100",
-                        "AAPL",
-                        100,
-                        220,
-                        OrderType.BUY,
-                        OrderExecutionType.LIMIT
-                )
-        );
-
-        orderBook.modifyOrder(
-                "ORD100",
-                150,
-                240
-        );
-
-        orderBook.printOrderBook();
-
-        // CSV EXPORT
-
-        TradeExporter.exportTrades(
-                orderBook.getTradeHistory()
-
-
-        );
+        aaplBook.displayTradeHistory();
     }
 }
