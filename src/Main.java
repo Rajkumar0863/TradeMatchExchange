@@ -7,95 +7,152 @@ public class Main {
 
     public static void main(String[] args) {
 
+        System.out.println("==========================================");
+        System.out.println("      TradeMatch Exchange v2.0");
+        System.out.println("==========================================");
+
         Exchange exchange = new Exchange();
 
-        // CREATE STOCK ORDER BOOKS
+        /*
+         * Create Stocks
+         */
 
         exchange.addStock("AAPL");
-        exchange.addStock("MSFT");
-        exchange.addStock("TSLA");
-        exchange.addStock("GOOGL");
 
         exchange.displayStocks();
 
-        // GET AAPL ORDER BOOK
+        /*
+         * BUY Orders
+         */
 
-        var aaplBook =
-                exchange.getOrderBook("AAPL");
+        exchange.placeOrder(
 
-        // BUY ORDERS
-
-        aaplBook.addOrder(
                 new Order(
                         "ORD001",
                         "AAPL",
                         100,
-                        250.0,
+                        210.00,
                         OrderType.BUY,
                         OrderExecutionType.LIMIT
-                )
-        );
+                ));
 
-        aaplBook.addOrder(
+        exchange.placeOrder(
+
                 new Order(
                         "ORD002",
                         "AAPL",
-                        100,
-                        220.0,
+                        50,
+                        215.00,
                         OrderType.BUY,
                         OrderExecutionType.LIMIT
-                )
-        );
+                ));
 
-        // SELL ORDERS
+        exchange.placeOrder(
 
-        aaplBook.addOrder(
                 new Order(
                         "ORD003",
                         "AAPL",
-                        40,
-                        190.0,
-                        OrderType.SELL,
+                        75,
+                        208.00,
+                        OrderType.BUY,
                         OrderExecutionType.LIMIT
-                )
-        );
+                ));
 
-        aaplBook.addOrder(
+        /*
+         * SELL Orders
+         */
+
+        exchange.placeOrder(
+
                 new Order(
                         "ORD004",
                         "AAPL",
-                        50,
-                        195.0,
+                        80,
+                        205.00,
                         OrderType.SELL,
                         OrderExecutionType.LIMIT
-                )
-        );
+                ));
 
-        aaplBook.addOrder(
+        exchange.placeOrder(
+
                 new Order(
                         "ORD005",
                         "AAPL",
-                        70,
-                        210.0,
+                        60,
+                        210.00,
                         OrderType.SELL,
                         OrderExecutionType.LIMIT
-                )
+                ));
+
+        exchange.placeOrder(
+
+                new Order(
+                        "ORD006",
+                        "AAPL",
+                        40,
+                        220.00,
+                        OrderType.SELL,
+                        OrderExecutionType.LIMIT
+                ));
+
+        /*
+         * Before Matching
+         */
+
+        System.out.println("\n========== BEFORE MATCHING ==========");
+
+        exchange.displayOrderBook("AAPL");
+
+        /*
+         * Execute Matching
+         */
+
+        exchange.matchOrders("AAPL");
+
+        /*
+         * After Matching
+         */
+
+        System.out.println("\n========== AFTER MATCHING ==========");
+
+        exchange.displayOrderBook("AAPL");
+
+        /*
+         * Trades
+         */
+
+        exchange.displayTradeHistory();
+
+        /*
+         * Modify Order
+         */
+
+        System.out.println("\n========== MODIFY ORDER ==========");
+
+        exchange.modifyOrder(
+                "AAPL",
+                "ORD006",
+                100,
+                218.00
         );
 
-        // MATCH ORDERS
+        exchange.displayOrderBook("AAPL");
 
-        aaplBook.matchOrders();
+        /*
+         * Cancel Order
+         */
 
-        // DISPLAY REMAINING ORDERS
+        System.out.println("\n========== CANCEL ORDER ==========");
 
-        System.out.println(
-                "\n===== AAPL ORDER BOOK ====="
+        exchange.cancelOrder(
+                "AAPL",
+                "ORD003"
         );
 
-        aaplBook.printOrderBook();
+        exchange.displayOrderBook("AAPL");
 
-        // DISPLAY TRADE HISTORY
-
-        aaplBook.displayTradeHistory();
+        System.out.println("\n==========================================");
+        System.out.println(" Exchange Simulation Completed Successfully");
+        System.out.println("==========================================");
     }
 }
