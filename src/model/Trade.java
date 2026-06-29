@@ -1,15 +1,16 @@
 package model;
 
 import java.time.LocalDateTime;
+import java.util.Objects;
 
 public class Trade {
 
-    private String tradeId;
-    private String buyOrderId;
-    private String sellOrderId;
-    private int quantity;
-    private double executionPrice;
-    private LocalDateTime timestamp;
+    private final String tradeId;
+    private final String buyOrderId;
+    private final String sellOrderId;
+    private final int quantity;
+    private final double executionPrice;
+    private final LocalDateTime timestamp;
 
     public Trade(
             String tradeId,
@@ -26,6 +27,18 @@ public class Trade {
         this.timestamp = LocalDateTime.now();
     }
 
+    public String getTradeId() {
+        return tradeId;
+    }
+
+    public String getBuyOrderId() {
+        return buyOrderId;
+    }
+
+    public String getSellOrderId() {
+        return sellOrderId;
+    }
+
     public int getQuantity() {
         return quantity;
     }
@@ -34,13 +47,20 @@ public class Trade {
         return executionPrice;
     }
 
+    public LocalDateTime getTimestamp() {
+        return timestamp;
+    }
+
     public String toCsvRow() {
 
-        return tradeId + "," +
-                buyOrderId + "," +
-                sellOrderId + "," +
-                quantity + "," +
-                executionPrice;
+        return String.join(",",
+                tradeId,
+                buyOrderId,
+                sellOrderId,
+                String.valueOf(quantity),
+                String.valueOf(executionPrice),
+                timestamp.toString()
+        );
     }
 
     @Override
@@ -54,5 +74,25 @@ public class Trade {
                 ", executionPrice=" + executionPrice +
                 ", timestamp=" + timestamp +
                 '}';
+    }
+
+    @Override
+    public boolean equals(Object object) {
+
+        if (this == object) {
+            return true;
+        }
+
+        if (!(object instanceof Trade trade)) {
+            return false;
+        }
+
+        return Objects.equals(tradeId, trade.tradeId);
+    }
+
+    @Override
+    public int hashCode() {
+
+        return Objects.hash(tradeId);
     }
 }
