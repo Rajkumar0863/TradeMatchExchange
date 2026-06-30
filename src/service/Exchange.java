@@ -120,6 +120,19 @@ public class Exchange {
     /**
      * Modify an order.
      */
+    public void displayMarketDepth(String stockSymbol) {
+
+        OrderBook orderBook = orderBooks.get(stockSymbol);
+
+        if (orderBook == null) {
+
+            System.out.println("Stock Not Found.");
+
+            return;
+        }
+
+        orderBook.printMarketDepth();
+    }
     public boolean modifyOrder(
 
             String stockSymbol,

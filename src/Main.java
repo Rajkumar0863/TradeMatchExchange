@@ -137,6 +137,8 @@ public class Main {
 
         exchange.displayOrderBook("AAPL");
 
+        exchange.displayMarketDepth("AAPL");
+
         System.out.println("\n========== IOC SELL TEST ==========");
 
         exchange.placeOrder(

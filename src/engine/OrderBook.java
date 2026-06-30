@@ -3,6 +3,7 @@ package engine;
 import model.Order;
 import model.OrderExecutionType;
 import model.OrderType;
+import java.util.TreeMap;
 
 import java.util.Comparator;
 import java.util.Iterator;
@@ -13,6 +14,7 @@ public class OrderBook {
     private final PriorityQueue<Order> buyOrders;
 
     private final PriorityQueue<Order> sellOrders;
+
 
     public OrderBook() {
 
@@ -312,6 +314,96 @@ public class OrderBook {
     /**
      * Prints the current Order Book.
      */
+
+    public void printMarketDepth() {
+
+        System.out.println("\n========== MARKET DEPTH ==========");
+
+        TreeMap<Double, Integer> buyDepth =
+                new TreeMap<>(Comparator.reverseOrder());
+
+        TreeMap<Double, Integer> sellDepth =
+                new TreeMap<>();
+
+        /*
+         * Aggregate BUY orders
+         */
+        for (Order order : buyOrders) {
+
+            buyDepth.merge(
+                    order.getPrice(),
+                    order.getQuantity(),
+                    Integer::sum
+            );
+        }
+
+        /*
+         * Aggregate SELL orders
+         */
+        for (Order order : sellOrders) {
+
+            sellDepth.merge(
+                    order.getPrice(),
+                    order.getQuantity(),
+                    Integer::sum
+            );
+        }
+
+        System.out.println("\nBUY");
+
+        if (buyDepth.isEmpty()) {
+
+            System.out.println("No BUY Orders");
+
+        } else {
+
+            for (var entry : buyDepth.entrySet()) {
+
+                System.out.printf(
+                        "%.2f x %d%n",
+                        entry.getKey(),
+                        entry.getValue()
+                );
+            }
+        }
+
+        System.out.println("\n----------------------------");
+
+        System.out.println("\nSELL");
+
+        if (sellDepth.isEmpty()) {
+
+            System.out.println("No SELL Orders");
+
+        } else {
+
+            for (var entry : sellDepth.entrySet()) {
+
+                System.out.printf(
+                        "%.2f x %d%n",
+                        entry.getKey(),
+                        entry.getValue()
+                );
+            }
+        }
+
+        System.out.println("\n----------------------------");
+
+        Double bestBid = getBestBid();
+        Double bestAsk = getBestAsk();
+
+        System.out.println("Best Bid : " + bestBid);
+        System.out.println("Best Ask : " + bestAsk);
+
+        if (bestBid != null && bestAsk != null
+                && bestBid != Double.POSITIVE_INFINITY
+                && bestAsk != 0.0) {
+
+            System.out.println(
+                    "Spread   : " + (bestAsk - bestBid)
+            );
+        }
+    }
     public void printOrderBook() {
 
         System.out.println(

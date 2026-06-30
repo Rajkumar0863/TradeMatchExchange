@@ -143,14 +143,33 @@ public class MatchingEngine {
             Order sellOrder = sellOrders.peek();
 
             if (!canExecute(buyOrder, sellOrder)) {
+
+                System.out.println(
+                        "\nNo More Matchable Orders."
+                );
+
                 break;
             }
+            try {
 
-            executeTrade(
-                    buyOrder,
-                    sellOrder,
-                    repository
-            );
+                executeTrade(
+                        buyOrder,
+                        sellOrder,
+                        repository
+                );
+
+            } catch (IllegalStateException exception) {
+
+                System.out.println(
+                        "\nTrade Rejected : "
+                                + exception.getMessage()
+                );
+
+                buyOrders.poll();
+                sellOrders.poll();
+
+                continue;
+            }
 
 
             handleSpecialExecutionTypes(
@@ -167,6 +186,12 @@ public class MatchingEngine {
                     sellOrder
             );
         }
+        if (buyOrders.isEmpty() || sellOrders.isEmpty()) {
+
+            System.out.println(
+                    "\nMatching Completed."
+            );
+        }
     }
 
     /**
@@ -177,13 +202,11 @@ public class MatchingEngine {
             Order buyOrder,
             Order sellOrder) {
 
-        if (buyOrder.getExecutionType()
-                == OrderExecutionType.MARKET) {
+        if (buyOrder.getExecutionType() == OrderExecutionType.MARKET) {
             return true;
         }
 
-        if (sellOrder.getExecutionType()
-                == OrderExecutionType.MARKET) {
+        if (sellOrder.getExecutionType() == OrderExecutionType.MARKET) {
             return true;
         }
 
@@ -200,6 +223,12 @@ public class MatchingEngine {
                         buyOrder.getQuantity(),
                         sellOrder.getQuantity()
                 );
+        if (tradedQuantity <= 0) {
+
+            throw new IllegalStateException(
+                    "Invalid traded quantity."
+            );
+        }
 
         double executionPrice =
                 determineExecutionPrice(
@@ -233,27 +262,38 @@ public class MatchingEngine {
             Order buyOrder,
             Order sellOrder) {
 
-        if (buyOrder.getExecutionType()
-                == OrderExecutionType.MARKET
-                &&
-                sellOrder.getExecutionType()
-                        == OrderExecutionType.MARKET) {
+        /*
+         * MARKET vs MARKET
+         * (Temporary implementation)
+         */
+        if (buyOrder.getExecutionType() == OrderExecutionType.MARKET
+                && sellOrder.getExecutionType() == OrderExecutionType.MARKET) {
 
             return 0.0;
         }
 
-        if (buyOrder.getExecutionType()
-                == OrderExecutionType.MARKET) {
+        /*
+         * MARKET BUY
+         * Executes at SELL price.
+         */
+        if (buyOrder.getExecutionType() == OrderExecutionType.MARKET) {
 
             return sellOrder.getPrice();
         }
 
-        if (sellOrder.getExecutionType()
-                == OrderExecutionType.MARKET) {
+        /*
+         * MARKET SELL
+         * Executes at BUY price.
+         */
+        if (sellOrder.getExecutionType() == OrderExecutionType.MARKET) {
 
             return buyOrder.getPrice();
         }
 
+        /*
+         * LIMIT vs LIMIT
+         * Executes at resting SELL price.
+         */
         return sellOrder.getPrice();
     }
     private void updateOrderQuantities(
@@ -263,14 +303,20 @@ public class MatchingEngine {
 
         buyOrder.setQuantity(
 
-                buyOrder.getQuantity()
-                        - tradedQuantity
+                Math.max(
+                        0,
+                        buyOrder.getQuantity()
+                                - tradedQuantity
+                )
         );
 
         sellOrder.setQuantity(
 
-                sellOrder.getQuantity()
-                        - tradedQuantity
+                Math.max(
+                        0,
+                        sellOrder.getQuantity()
+                                - tradedQuantity
+                )
         );
     }
 
@@ -289,24 +335,22 @@ public class MatchingEngine {
 
         boolean removeBuy =
 
-                buyOrder.getQuantity() == 0 ||
+                buyOrder.getQuantity() <= 0 ||
 
                         buyOrder.getExecutionType()
                                 == OrderExecutionType.MARKET;
-
         boolean removeSell =
 
-                sellOrder.getQuantity() == 0 ||
+                sellOrder.getQuantity() <= 0 ||
 
                         sellOrder.getExecutionType()
                                 == OrderExecutionType.MARKET;
-
         if (removeBuy) {
-            buyOrders.poll();
+            buyOrders.remove(buyOrder);
         }
 
         if (removeSell) {
-            sellOrders.poll();
+            sellOrders.remove(sellOrder);
         }
     }
     private String nextTradeId() {
