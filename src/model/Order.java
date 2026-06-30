@@ -11,7 +11,17 @@ public class Order {
     private OrderType orderType;
     private OrderExecutionType executionType;
     private LocalDateTime timestamp;
+    public boolean isMarketOrder() {
 
+        return executionType ==
+                OrderExecutionType.MARKET;
+    }
+
+    public boolean isLimitOrder() {
+
+        return executionType ==
+                OrderExecutionType.LIMIT;
+    }
     public Order(
             String orderId,
             String stockSymbol,

@@ -95,9 +95,98 @@ public class Main {
                         OrderExecutionType.LIMIT
                 ));
 
+        exchange.placeOrder(
+
+                new Order(
+                        "ORD007",
+                        "AAPL",
+                        30,
+                        0,
+                        OrderType.BUY,
+                        OrderExecutionType.MARKET
+                )
+        );
+        exchange.placeOrder(
+
+                new Order(
+                        "ORD008",
+                        "AAPL",
+                        25,
+                        0,
+                        OrderType.SELL,
+                        OrderExecutionType.MARKET
+                )
+        );
         /*
          * Before Matching
          */
+        System.out.println("\n========== IOC BUY TEST ==========");
+
+        exchange.placeOrder(
+
+                new Order(
+                        "IOC001",
+                        "AAPL",
+                        100,
+                        215.00,
+                        OrderType.BUY,
+                        OrderExecutionType.IOC
+                ));
+
+        exchange.matchOrders("AAPL");
+
+        exchange.displayOrderBook("AAPL");
+
+        System.out.println("\n========== IOC SELL TEST ==========");
+
+        exchange.placeOrder(
+
+                new Order(
+                        "IOC002",
+                        "AAPL",
+                        100,
+                        205.00,
+                        OrderType.SELL,
+                        OrderExecutionType.IOC
+                ));
+
+        exchange.matchOrders("AAPL");
+
+        exchange.displayOrderBook("AAPL");
+
+        System.out.println("\n========== FOK BUY TEST ==========");
+
+        exchange.placeOrder(
+
+                new Order(
+                        "FOK001",
+                        "AAPL",
+                        500,
+                        220.00,
+                        OrderType.BUY,
+                        OrderExecutionType.FOK
+                ));
+
+        exchange.matchOrders("AAPL");
+
+        exchange.displayOrderBook("AAPL");
+
+        System.out.println("\n========== FOK SELL TEST ==========");
+
+        exchange.placeOrder(
+
+                new Order(
+                        "FOK002",
+                        "AAPL",
+                        500,
+                        205.00,
+                        OrderType.SELL,
+                        OrderExecutionType.FOK
+                ));
+
+        exchange.matchOrders("AAPL");
+
+        exchange.displayOrderBook("AAPL");
 
         System.out.println("\n========== BEFORE MATCHING ==========");
 

@@ -24,6 +24,103 @@ public class MatchingEngine {
      * - MARKET Orders
      * - Price-Time Priority
      */
+    private void handleSpecialExecutionTypes(
+
+            PriorityQueue<Order> buyOrders,
+
+            PriorityQueue<Order> sellOrders,
+
+            Order buyOrder,
+
+            Order sellOrder) {
+
+        if (buyOrder.getExecutionType()
+                == OrderExecutionType.IOC) {
+
+            buyOrders.remove(buyOrder);
+        }
+
+        if (sellOrder.getExecutionType()
+                == OrderExecutionType.IOC) {
+
+            sellOrders.remove(sellOrder);
+        }
+
+        if (buyOrder.getExecutionType()
+                == OrderExecutionType.FOK
+                &&
+                buyOrder.getQuantity() > 0) {
+
+            buyOrders.remove(buyOrder);
+        }
+
+        if (sellOrder.getExecutionType()
+                == OrderExecutionType.FOK
+                &&
+                sellOrder.getQuantity() > 0) {
+
+            sellOrders.remove(sellOrder);
+        }
+    }
+
+    private int totalBuyVolume(
+            PriorityQueue<Order> orders) {
+
+        int volume = 0;
+
+        for (Order order : orders) {
+            volume += order.getQuantity();
+        }
+
+        return volume;
+    }
+
+    private int totalSellVolume(
+            PriorityQueue<Order> orders) {
+
+        int volume = 0;
+
+        for (Order order : orders) {
+            volume += order.getQuantity();
+        }
+
+        return volume;
+    }
+
+    private void validateFillOrKill(
+
+            PriorityQueue<Order> buyOrders,
+
+            PriorityQueue<Order> sellOrders) {
+
+        Order buy = buyOrders.peek();
+
+        Order sell = sellOrders.peek();
+
+        if (buy != null
+                &&
+                buy.getExecutionType()
+                        == OrderExecutionType.FOK) {
+
+            if (buy.getQuantity()
+                    > totalSellVolume(sellOrders)) {
+
+                buyOrders.poll();
+            }
+        }
+
+        if (sell != null
+                &&
+                sell.getExecutionType()
+                        == OrderExecutionType.FOK) {
+
+            if (sell.getQuantity()
+                    > totalBuyVolume(buyOrders)) {
+
+                sellOrders.poll();
+            }
+        }
+    }
     public void match(
             OrderBook orderBook,
             TradeRepository repository) {
@@ -33,6 +130,11 @@ public class MatchingEngine {
 
         PriorityQueue<Order> sellOrders =
                 orderBook.getSellOrders();
+
+        validateFillOrKill(
+                buyOrders,
+                sellOrders
+        );
 
         while (!buyOrders.isEmpty()
                 && !sellOrders.isEmpty()) {
@@ -48,6 +150,14 @@ public class MatchingEngine {
                     buyOrder,
                     sellOrder,
                     repository
+            );
+
+
+            handleSpecialExecutionTypes(
+                    buyOrders,
+                    sellOrders,
+                    buyOrder,
+                    sellOrder
             );
 
             removeCompletedOrders(
@@ -80,10 +190,6 @@ public class MatchingEngine {
         return buyOrder.getPrice()
                 >= sellOrder.getPrice();
     }
-
-    /**
-     * Executes a single trade.
-     */
     private void executeTrade(
             Order buyOrder,
             Order sellOrder,
@@ -150,10 +256,6 @@ public class MatchingEngine {
 
         return sellOrder.getPrice();
     }
-
-    /**
-     * Updates remaining quantities.
-     */
     private void updateOrderQuantities(
             Order buyOrder,
             Order sellOrder,
@@ -185,20 +287,28 @@ public class MatchingEngine {
 
             Order sellOrder) {
 
-        if (buyOrder.getQuantity() == 0) {
+        boolean removeBuy =
 
+                buyOrder.getQuantity() == 0 ||
+
+                        buyOrder.getExecutionType()
+                                == OrderExecutionType.MARKET;
+
+        boolean removeSell =
+
+                sellOrder.getQuantity() == 0 ||
+
+                        sellOrder.getExecutionType()
+                                == OrderExecutionType.MARKET;
+
+        if (removeBuy) {
             buyOrders.poll();
         }
 
-        if (sellOrder.getQuantity() == 0) {
-
+        if (removeSell) {
             sellOrders.poll();
         }
     }
-
-    /**
-     * Generates next Trade ID.
-     */
     private String nextTradeId() {
 
         return String.format(
