@@ -1,7 +1,6 @@
 package model;
 
 import java.time.LocalDateTime;
-import java.util.Objects;
 
 public class Trade {
 
@@ -53,14 +52,12 @@ public class Trade {
 
     public String toCsvRow() {
 
-        return String.join(",",
-                tradeId,
-                buyOrderId,
-                sellOrderId,
-                String.valueOf(quantity),
-                String.valueOf(executionPrice),
-                timestamp.toString()
-        );
+        return tradeId + "," +
+                buyOrderId + "," +
+                sellOrderId + "," +
+                quantity + "," +
+                executionPrice + "," +
+                timestamp;
     }
 
     @Override
@@ -74,25 +71,5 @@ public class Trade {
                 ", executionPrice=" + executionPrice +
                 ", timestamp=" + timestamp +
                 '}';
-    }
-
-    @Override
-    public boolean equals(Object object) {
-
-        if (this == object) {
-            return true;
-        }
-
-        if (!(object instanceof Trade trade)) {
-            return false;
-        }
-
-        return Objects.equals(tradeId, trade.tradeId);
-    }
-
-    @Override
-    public int hashCode() {
-
-        return Objects.hash(tradeId);
     }
 }

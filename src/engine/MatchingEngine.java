@@ -13,12 +13,16 @@ public class MatchingEngine {
 
     public MatchingEngine() {
 
-        tradeCounter = 1;
+        this.tradeCounter = 1;
     }
 
     /**
-     * Matches BUY and SELL orders using
-     * Price-Time Priority.
+     * Core matching loop.
+     *
+     * Supports:
+     * - LIMIT Orders
+     * - MARKET Orders
+     * - Price-Time Priority
      */
     public void match(
             OrderBook orderBook,
@@ -33,145 +37,223 @@ public class MatchingEngine {
         while (!buyOrders.isEmpty()
                 && !sellOrders.isEmpty()) {
 
-            Order bestBuy = buyOrders.peek();
-            Order bestSell = sellOrders.peek();
+            Order buyOrder = buyOrders.peek();
+            Order sellOrder = sellOrders.peek();
 
-            /*
-             * Check whether the orders
-             * are executable.
-             */
-
-            if (!canExecute(bestBuy, bestSell)) {
+            if (!canExecute(buyOrder, sellOrder)) {
                 break;
             }
 
-            int tradedQuantity =
-                    Math.min(
-                            bestBuy.getQuantity(),
-                            bestSell.getQuantity());
+            executeTrade(
+                    buyOrder,
+                    sellOrder,
+                    repository
+            );
 
-            double executionPrice =
-                    determineExecutionPrice(
-                            bestBuy,
-                            bestSell);
-
-            Trade trade =
-                    new Trade(
-                            generateTradeId(),
-                            bestBuy.getOrderId(),
-                            bestSell.getOrderId(),
-                            tradedQuantity,
-                            executionPrice);
-
-            repository.addTrade(trade);
-
-            printTrade(trade);
-
-            bestBuy.setQuantity(
-                    bestBuy.getQuantity()
-                            - tradedQuantity);
-
-            bestSell.setQuantity(
-                    bestSell.getQuantity()
-                            - tradedQuantity);
-
-            if (bestBuy.getQuantity() == 0) {
-
-                buyOrders.poll();
-            }
-
-            if (bestSell.getQuantity() == 0) {
-
-                sellOrders.poll();
-            }
+            removeCompletedOrders(
+                    buyOrders,
+                    sellOrders,
+                    buyOrder,
+                    sellOrder
+            );
         }
     }
 
     /**
      * Determines whether
-     * two orders can execute.
+     * two orders can match.
      */
     private boolean canExecute(
-            Order buy,
-            Order sell) {
+            Order buyOrder,
+            Order sellOrder) {
 
-        if (buy.getExecutionType()
+        if (buyOrder.getExecutionType()
                 == OrderExecutionType.MARKET) {
-
             return true;
         }
 
-        if (sell.getExecutionType()
+        if (sellOrder.getExecutionType()
                 == OrderExecutionType.MARKET) {
-
             return true;
         }
 
-        return buy.getPrice()
-                >= sell.getPrice();
+        return buyOrder.getPrice()
+                >= sellOrder.getPrice();
     }
 
+    /**
+     * Executes a single trade.
+     */
+    private void executeTrade(
+            Order buyOrder,
+            Order sellOrder,
+            TradeRepository repository) {
+
+        int tradedQuantity =
+                Math.min(
+                        buyOrder.getQuantity(),
+                        sellOrder.getQuantity()
+                );
+
+        double executionPrice =
+                determineExecutionPrice(
+                        buyOrder,
+                        sellOrder
+                );
+
+        Trade trade =
+                new Trade(
+                        nextTradeId(),
+                        buyOrder.getOrderId(),
+                        sellOrder.getOrderId(),
+                        tradedQuantity,
+                        executionPrice
+                );
+
+        repository.addTrade(trade);
+
+        updateOrderQuantities(
+                buyOrder,
+                sellOrder,
+                tradedQuantity
+        );
+
+        printTrade(trade);
+    }
     /**
      * Determines execution price.
      */
     private double determineExecutionPrice(
-            Order buy,
-            Order sell) {
+            Order buyOrder,
+            Order sellOrder) {
 
-        if (buy.getExecutionType()
-                == OrderExecutionType.MARKET) {
+        if (buyOrder.getExecutionType()
+                == OrderExecutionType.MARKET
+                &&
+                sellOrder.getExecutionType()
+                        == OrderExecutionType.MARKET) {
 
-            return sell.getPrice();
+            return 0.0;
         }
 
-        if (sell.getExecutionType()
+        if (buyOrder.getExecutionType()
                 == OrderExecutionType.MARKET) {
 
-            return buy.getPrice();
+            return sellOrder.getPrice();
         }
 
-        return sell.getPrice();
+        if (sellOrder.getExecutionType()
+                == OrderExecutionType.MARKET) {
+
+            return buyOrder.getPrice();
+        }
+
+        return sellOrder.getPrice();
     }
 
     /**
-     * Generates sequential trade IDs.
+     * Updates remaining quantities.
      */
-    private String generateTradeId() {
+    private void updateOrderQuantities(
+            Order buyOrder,
+            Order sellOrder,
+            int tradedQuantity) {
+
+        buyOrder.setQuantity(
+
+                buyOrder.getQuantity()
+                        - tradedQuantity
+        );
+
+        sellOrder.setQuantity(
+
+                sellOrder.getQuantity()
+                        - tradedQuantity
+        );
+    }
+
+    /**
+     * Removes fully executed orders.
+     */
+    private void removeCompletedOrders(
+
+            PriorityQueue<Order> buyOrders,
+
+            PriorityQueue<Order> sellOrders,
+
+            Order buyOrder,
+
+            Order sellOrder) {
+
+        if (buyOrder.getQuantity() == 0) {
+
+            buyOrders.poll();
+        }
+
+        if (sellOrder.getQuantity() == 0) {
+
+            sellOrders.poll();
+        }
+    }
+
+    /**
+     * Generates next Trade ID.
+     */
+    private String nextTradeId() {
 
         return String.format(
                 "TRD%06d",
-                tradeCounter++);
+                tradeCounter++
+        );
     }
+
     /**
-     * Prints executed trade details.
+     * Prints executed trade.
      */
-    private void printTrade(Trade trade) {
+    private void printTrade(
+            Trade trade) {
 
         System.out.println();
-        System.out.println("====================================");
-        System.out.println("          TRADE EXECUTED");
-        System.out.println("====================================");
-        System.out.println("Trade ID      : " + trade.getTradeId());
-        System.out.println("Buy Order ID  : " + trade.getBuyOrderId());
-        System.out.println("Sell Order ID : " + trade.getSellOrderId());
-        System.out.println("Quantity      : " + trade.getQuantity());
-        System.out.println("Price         : " + trade.getExecutionPrice());
-        System.out.println("====================================");
-    }
 
-    /**
-     * Returns the next trade number.
-     */
-    public long getTradeCounter() {
+        System.out.println(
+                "===================================="
+        );
 
-        return tradeCounter;
-    }
+        System.out.println(
+                "          TRADE EXECUTED"
+        );
 
-    /**
-     * Resets the trade counter.
-     */
-    public void resetCounter() {
+        System.out.println(
+                "===================================="
+        );
 
-        tradeCounter = 1;
+        System.out.println(
+                "Trade ID      : "
+                        + trade.getTradeId()
+        );
+
+        System.out.println(
+                "Buy Order ID  : "
+                        + trade.getBuyOrderId()
+        );
+
+        System.out.println(
+                "Sell Order ID : "
+                        + trade.getSellOrderId()
+        );
+
+        System.out.println(
+                "Quantity      : "
+                        + trade.getQuantity()
+        );
+
+        System.out.println(
+                "Price         : "
+                        + trade.getExecutionPrice()
+        );
+
+        System.out.println(
+                "===================================="
+        );
     }
 }
