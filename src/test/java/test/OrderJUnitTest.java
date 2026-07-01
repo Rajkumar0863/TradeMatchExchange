@@ -1,9 +1,10 @@
 package test;
 
-import model.Order;
-import model.OrderExecutionType;
-import model.OrderType;
 import org.junit.jupiter.api.Test;
+
+import com.rajkumar.tradematchexchange.model.Order;
+import com.rajkumar.tradematchexchange.model.OrderExecutionType;
+import com.rajkumar.tradematchexchange.model.OrderType;
 
 import static org.junit.jupiter.api.Assertions.*;
 

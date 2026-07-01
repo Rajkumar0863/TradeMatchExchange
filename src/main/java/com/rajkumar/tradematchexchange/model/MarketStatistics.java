@@ -1,6 +1,6 @@
-package model;
+package com.rajkumar.tradematchexchange.model;
 
-import repository.TradeRepository;
+import com.rajkumar.tradematchexchange.repository.TradeRepository;
 
 public class MarketStatistics {
 

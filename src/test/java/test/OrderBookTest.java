@@ -1,9 +1,9 @@
 package test;
 
-import model.Order;
-import model.OrderExecutionType;
-import model.OrderType;
-import service.Exchange;
+import com.rajkumar.tradematchexchange.model.Order;
+import com.rajkumar.tradematchexchange.model.OrderExecutionType;
+import com.rajkumar.tradematchexchange.model.OrderType;
+import com.rajkumar.tradematchexchange.service.Exchange;
 
 public class OrderBookTest {
 

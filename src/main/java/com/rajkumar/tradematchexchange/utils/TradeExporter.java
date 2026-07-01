@@ -1,7 +1,4 @@
-package utils;
-
-import model.Trade;
-import repository.TradeRepository;
+package com.rajkumar.tradematchexchange.utils;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -10,6 +7,9 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+
+import com.rajkumar.tradematchexchange.model.Trade;
+import com.rajkumar.tradematchexchange.repository.TradeRepository;
 
 public final class TradeExporter {
 

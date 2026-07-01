@@ -1,4 +1,4 @@
-package model;
+package com.rajkumar.tradematchexchange.model;
 
 /**
  * Represents the execution instruction

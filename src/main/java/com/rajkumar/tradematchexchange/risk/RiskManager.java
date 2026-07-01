@@ -1,10 +1,10 @@
-package risk;
-
-import model.Order;
-import model.OrderExecutionType;
+package com.rajkumar.tradematchexchange.risk;
 
 import java.util.HashSet;
 import java.util.Set;
+
+import com.rajkumar.tradematchexchange.model.Order;
+import com.rajkumar.tradematchexchange.model.OrderExecutionType;
 
 public class RiskManager {
 

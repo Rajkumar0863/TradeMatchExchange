@@ -1,12 +1,13 @@
 package test;
 
-import engine.MatchingEngine;
-import engine.OrderBook;
-import model.Order;
-import model.OrderExecutionType;
-import model.OrderType;
 import org.junit.jupiter.api.Test;
-import repository.TradeRepository;
+
+import com.rajkumar.tradematchexchange.engine.MatchingEngine;
+import com.rajkumar.tradematchexchange.engine.OrderBook;
+import com.rajkumar.tradematchexchange.model.Order;
+import com.rajkumar.tradematchexchange.model.OrderExecutionType;
+import com.rajkumar.tradematchexchange.model.OrderType;
+import com.rajkumar.tradematchexchange.repository.TradeRepository;
 
 import static org.junit.jupiter.api.Assertions.*;
 

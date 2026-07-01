@@ -1,13 +1,17 @@
-package service;
-
-import engine.MatchingEngine;
-import engine.OrderBook;
-import model.Order;
-import repository.TradeRepository;
-import risk.RiskManager;
+package com.rajkumar.tradematchexchange.service;
 
 import java.util.HashMap;
 import java.util.Map;
+import org.springframework.stereotype.Service;
+
+import com.rajkumar.tradematchexchange.engine.MatchingEngine;
+import com.rajkumar.tradematchexchange.engine.OrderBook;
+import com.rajkumar.tradematchexchange.model.Order;
+import com.rajkumar.tradematchexchange.repository.TradeRepository;
+import com.rajkumar.tradematchexchange.risk.RiskManager;
+import com.rajkumar.tradematchexchange.repository.OrderRepository;
+
+@Service
 
 public class Exchange {
 

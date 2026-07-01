@@ -1,11 +1,11 @@
-package engine;
-
-import model.Order;
-import model.OrderExecutionType;
-import model.Trade;
-import repository.TradeRepository;
+package com.rajkumar.tradematchexchange.engine;
 
 import java.util.PriorityQueue;
+
+import com.rajkumar.tradematchexchange.model.Order;
+import com.rajkumar.tradematchexchange.model.OrderExecutionType;
+import com.rajkumar.tradematchexchange.model.Trade;
+import com.rajkumar.tradematchexchange.repository.TradeRepository;
 
 public class MatchingEngine {
 

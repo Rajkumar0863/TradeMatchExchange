@@ -1,10 +1,10 @@
-package repository;
-
-import model.Trade;
+package com.rajkumar.tradematchexchange.repository;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+
+import com.rajkumar.tradematchexchange.model.Trade;
 
 public class TradeRepository {
 
