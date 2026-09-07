@@ -1,103 +1,159 @@
 # TradeMatchExchange
 
-A Java-based stock exchange matching engine that simulates how modern electronic exchanges process and execute trades.
+A Java stock exchange matching engine that simulates how electronic exchanges accept, validate, match and settle orders.
 
-The system implements heap-based order books, price-time priority matching, partial order fills, trade history tracking, and market analytics.
+The engine maintains a heap-based order book per stock symbol, matches orders using price-time priority, supports partial fills and multiple execution types, validates orders before they reach the book, and records executed trades with market statistics and CSV export.
 
 ---
 
 ## Features
 
 ### Order Management
+- Buy order book (max heap) and sell order book (min heap), backed by `PriorityQueue`
+- Price-time priority matching
+- Execution types: `LIMIT`, `MARKET`, `IOC` (Immediate-Or-Cancel), `FOK` (Fill-Or-Kill)
+- Partial order fills
+- Order cancellation and modification
+- Best bid / best ask lookup and market depth display
 
-* Buy Order Book (Max Heap)
-* Sell Order Book (Min Heap)
-* Price-Time Priority Matching
-* Limit Orders
-* Partial Order Fills
+### Risk Control
+- Pre-trade validation before an order enters the book
+- Rejects null orders, missing IDs and symbols, and duplicate order IDs
+- Enforces maximum order quantity and maximum price bounds
+- Price checks are skipped for `MARKET` orders, which execute at the best available price
 
-### Trade Execution
+### Trade Execution and Reporting
+- Automatic matching with trade generation and sequential trade IDs
+- In-memory trade repository (`TradeRepository`)
+- CSV export of executed trades (`TradeExporter`)
+- Market statistics: total trades, total volume, total traded value, highest, lowest and average trade price, and **VWAP**
 
-* Automatic Trade Matching
-* Trade History Tracking
-* Execution Price Calculation
-* Trade Quantity Management
-
-### Market Analytics
-
-* Total Trades
-* Total Volume
-* Highest Trade Price
-* Lowest Trade Price
-* Average Trade Price
+### Multi-Stock Support
+- `Exchange` manages an independent order book per stock symbol, with order placement, matching, cancellation, modification and display routed through a single service class
 
 ---
 
 ## System Architecture
 
-```text
-BUY ORDERS (Max Heap)
-          |
-          v
-     Order Book
-          |
-          v
-   Matching Engine
-          |
-          v
-SELL ORDERS (Min Heap)
-
-          |
-          v
-
-     Trade History
-          |
-          v
-
-   Market Statistics
+```
+            Order
+              |
+              v
+        RiskManager            (pre-trade validation)
+              |
+              v
+         OrderBook             (BUY: max heap / SELL: min heap)
+              |
+              v
+       MatchingEngine          (price-time priority, partial fills,
+              |                 LIMIT / MARKET / IOC / FOK)
+              v
+      TradeRepository          (trade history)
+              |
+      +-------+--------+
+      |                |
+      v                v
+MarketStatistics  TradeExporter
+ (incl. VWAP)        (CSV)
 ```
 
 ---
 
 ## Technologies Used
 
-* Java
-* Object-Oriented Programming (OOP)
-* PriorityQueue
-* Heap Data Structures
-* Collections Framework
-* LocalDateTime API
+- Java 17
+- Object-Oriented Programming
+- `PriorityQueue`, heap data structures, Collections Framework
+- `LocalDateTime` API
+- JUnit 5 (Jupiter)
 
 ---
 
-## Core Concepts Implemented
+## Project Structure
 
-### Data Structures
+```
+src
+├── Main.java                        Demo driver
+├── OrderTest.java                   Manual test harness
+│
+├── model
+│   ├── Order.java
+│   ├── Trade.java
+│   ├── OrderType.java               BUY / SELL
+│   ├── OrderExecutionType.java      LIMIT / MARKET / IOC / FOK
+│   └── MarketStatistics.java        Volume, high/low/avg, VWAP
+│
+├── engine
+│   ├── OrderBook.java               Heap-based book, cancel/modify, best bid/ask
+│   ├── MatchingEngine.java          Core matching loop
+│   └── MarketDepth.java
+│
+├── risk
+│   └── RiskManager.java             Pre-trade validation
+│
+├── repository
+│   └── TradeRepository.java         Trade history
+│
+├── service
+│   └── Exchange.java                Multi-stock facade
+│
+├── utils
+│   └── TradeExporter.java           CSV export
+│
+└── test
+    ├── OrderJUnitTest.java
+    ├── OrderBookJUnitTest.java
+    ├── OrderCancellationJUnitTest.java
+    ├── OrderModificationJUnitTest.java
+    └── OrderBookTest.java           Manual test harness
+```
 
-* Priority Queue
-* Max Heap
-* Min Heap
-* ArrayList
+---
 
-### Algorithms
+## How to Run
 
-* Price-Time Priority Matching
-* Partial Fill Processing
-* Trade Execution Logic
+### Option 1 — Maven (recommended)
 
-### OOP Concepts
+The project uses the standard Maven layout (`src/main/java`, `src/test/java`).
 
-* Classes and Objects
-* Encapsulation
-* Constructors
-* Enums
-* Method Overriding
+```bash
+# Compile
+mvn compile
+
+# Run the demo
+mvn exec:java -Dexec.mainClass="Main"
+
+# Run the test suite
+mvn test
+```
+
+### Option 2 — Plain javac
+
+```bash
+# Compile the application sources
+javac -d out $(find src/main/java -name "*.java")
+
+# Run the demo
+java -cp out Main
+```
+
+Running the tests without Maven requires the JUnit 5 console launcher on the classpath.
+
+---
+
+## Testing
+
+The test suite uses JUnit 5 and covers order construction and validation, order book insertion and ordering, cancellation, and modification.
+
+```bash
+mvn test
+```
 
 ---
 
 ## Sample Output
 
-```text
+```
 TRADE EXECUTED
 BUY : ORD001
 SELL: ORD003
@@ -115,44 +171,27 @@ Average Price: 201.25
 
 ---
 
-## Project Structure
+## Roadmap
 
-```text
-src
-│
-├── engine
-│   └── OrderBook.java
-│
-├── model
-│   ├── Order.java
-│   ├── Trade.java
-│   ├── OrderType.java
-│   ├── OrderExecutionType.java
-│   └── MarketStatistics.java
-│
-└── Main.java
-```
-
----
-
-## Future Enhancements
-
-* VWAP (Volume Weighted Average Price)
-* Total Traded Value
-* Best Bid / Best Ask
-* JUnit Testing
-* Spring Boot REST API
-* PostgreSQL Integration
-* Docker Deployment
+- Stop-loss and iceberg order types
+- Order book snapshots and replay
+- Spring Boot REST API over the `Exchange` service
+- PostgreSQL persistence for trade history
+- Latency benchmarking of the matching loop
+- Docker deployment
 
 ---
 
 ## Author
 
-Rajkumar Vijayan
+**Rajkumar Vijayan**
+MSc Software Development (International Systems), University of Limerick
 
-MSc Software Development (International Systems)
-University of Limerick
+- GitHub: [Rajkumar0863](https://github.com/Rajkumar0863)
+- LinkedIn: [rajkumar-vijayan](https://www.linkedin.com/in/rajkumar-vijayan-0135a8338/)
 
-GitHub: Rajkumar0863
-LinkedIn: Rajkumar Vijayan
+---
+
+## License
+
+MIT
