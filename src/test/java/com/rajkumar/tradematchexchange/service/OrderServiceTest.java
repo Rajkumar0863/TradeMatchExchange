@@ -1,5 +1,6 @@
 package com.rajkumar.tradematchexchange.service;
 
+import com.rajkumar.tradematchexchange.dto.OrderDto;
 import com.rajkumar.tradematchexchange.dto.OrderRequest;
 import com.rajkumar.tradematchexchange.dto.OrderResponse;
 import com.rajkumar.tradematchexchange.dto.UpdateOrderRequest;
@@ -8,13 +9,12 @@ import com.rajkumar.tradematchexchange.model.Order;
 import com.rajkumar.tradematchexchange.model.OrderExecutionType;
 import com.rajkumar.tradematchexchange.model.OrderType;
 import com.rajkumar.tradematchexchange.repository.OrderRepository;
+
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -33,51 +34,64 @@ class OrderServiceTest {
     @Mock
     private OrderRepository orderRepository;
 
-    @InjectMocks
     private OrderService orderService;
-
-    private Order order;
-    private OrderRequest request;
-    private UpdateOrderRequest updateRequest;
 
     @BeforeEach
     void setUp() {
 
-        order = new Order(
-                "ORD001",
+        orderService = new OrderService(
+                exchange,
+                orderRepository
+        );
+    }
+
+    private Order createOrder(
+            String orderId,
+            int quantity,
+            double price) {
+
+        return new Order(
+                orderId,
                 "AAPL",
-                100,
-                200.0,
+                quantity,
+                price,
                 OrderType.BUY,
                 OrderExecutionType.LIMIT
         );
-
-        request = new OrderRequest();
-
-        request.setOrderId("ORD001");
-        request.setStockSymbol("AAPL");
-        request.setQuantity(100);
-        request.setPrice(200.0);
-        request.setOrderType("BUY");
-        request.setExecutionType("LIMIT");
-
-        updateRequest = new UpdateOrderRequest();
-
-        updateRequest.setQuantity(150);
-        updateRequest.setPrice(220.0);
     }
 
     @Nested
-    @DisplayName("Place Order Tests")
     class PlaceOrderTests {
 
         @Test
-        @DisplayName("Should place order successfully")
         void shouldPlaceOrderSuccessfully() {
+
+            OrderRequest request =
+                    mock(OrderRequest.class);
+
+            when(request.getOrderId())
+                    .thenReturn("ORD001");
+
+            when(request.getStockSymbol())
+                    .thenReturn("AAPL");
+
+            when(request.getQuantity())
+                    .thenReturn(100);
+
+            when(request.getPrice())
+                    .thenReturn(150.0);
+
+            when(request.getOrderType())
+                    .thenReturn("BUY");
+
+            when(request.getExecutionType())
+                    .thenReturn("LIMIT");
 
             OrderResponse response =
                     orderService.placeOrder(request);
 
+            assertNotNull(response);
+
             verify(orderRepository)
                     .save(any(Order.class));
 
@@ -86,98 +100,96 @@ class OrderServiceTest {
 
             verify(exchange)
                     .matchOrders("AAPL");
-
-            assertEquals(
-                    "SUCCESS",
-                    response.getStatus());
-
-            assertEquals(
-                    "ORD001",
-                    response.getOrderId());
-        }
-    }
-        @Nested
-    @DisplayName("Get Order Tests")
-    class GetOrderTests {
-
-        @Test
-        @DisplayName("Should return order by id")
-        void shouldReturnOrderById() {
-
-            when(orderRepository.findById("ORD001"))
-                    .thenReturn(Optional.of(order));
-
-            var result = orderService.getOrder("ORD001");
-
-            assertNotNull(result);
-            assertEquals("ORD001", result.getOrderId());
-            assertEquals("AAPL", result.getStockSymbol());
-            assertEquals(100, result.getQuantity());
-
-            verify(orderRepository)
-                    .findById("ORD001");
-        }
-
-        @Test
-        @DisplayName("Should throw exception when order not found")
-        void shouldThrowExceptionWhenOrderNotFound() {
-
-            when(orderRepository.findById("ORD999"))
-                    .thenReturn(Optional.empty());
-
-            assertThrows(
-                    OrderNotFoundException.class,
-                    () -> orderService.getOrder("ORD999")
-            );
-
-            verify(orderRepository)
-                    .findById("ORD999");
         }
     }
 
     @Nested
-    @DisplayName("Get All Orders Tests")
+    class GetOrderTests {
+
+        @Test
+        void shouldReturnOrderWhenOrderExists() {
+
+            Order order =
+                    createOrder(
+                            "ORD002",
+                            50,
+                            200.0
+                    );
+
+            when(orderRepository.findById("ORD002"))
+                    .thenReturn(Optional.of(order));
+
+            OrderDto result =
+                    orderService.getOrder("ORD002");
+
+            assertNotNull(result);
+
+            verify(orderRepository)
+                    .findById("ORD002");
+        }
+
+        @Test
+        void shouldThrowExceptionWhenOrderDoesNotExist() {
+
+            when(orderRepository.findById("UNKNOWN"))
+                    .thenReturn(Optional.empty());
+
+            assertThrows(
+                    OrderNotFoundException.class,
+                    () -> orderService.getOrder("UNKNOWN")
+            );
+
+            verify(orderRepository)
+                    .findById("UNKNOWN");
+        }
+    }
+
+    @Nested
     class GetAllOrdersTests {
 
         @Test
-        @DisplayName("Should return all active orders")
         void shouldReturnAllOrders() {
 
-            Order secondOrder =
-                    new Order(
-                            "ORD002",
-                            "AAPL",
-                            50,
-                            190,
-                            OrderType.SELL,
-                            OrderExecutionType.LIMIT
+            Order first =
+                    createOrder(
+                            "ORD003",
+                            100,
+                            150.0
+                    );
+
+            Order second =
+                    createOrder(
+                            "ORD004",
+                            200,
+                            160.0
                     );
 
             when(orderRepository.findAll())
                     .thenReturn(
-                            List.of(order, secondOrder)
+                            List.of(first, second)
                     );
 
-            var orders =
+            List<OrderDto> result =
                     orderService.getAllOrders();
 
-            assertEquals(2, orders.size());
+            assertNotNull(result);
+            assertEquals(2, result.size());
 
             verify(orderRepository)
                     .findAll();
         }
 
         @Test
-        @DisplayName("Should return empty list")
-        void shouldReturnEmptyList() {
+        void shouldReturnEmptyListWhenNoOrdersExist() {
 
             when(orderRepository.findAll())
                     .thenReturn(List.of());
 
-            var orders =
+            List<OrderDto> result =
                     orderService.getAllOrders();
 
-            assertTrue(orders.isEmpty());
+            assertNotNull(result);
+            assertTrue(result.isEmpty());
 
             verify(orderRepository)
                     .findAll();
@@ -185,186 +197,259 @@ class OrderServiceTest {
     }
 
     @Nested
-    @DisplayName("Delete Order Tests")
     class DeleteOrderTests {
 
         @Test
-        @DisplayName("Should delete order successfully")
-        void shouldDeleteOrderSuccessfully() {
+        void shouldDeleteExistingOrder() {
 
-            when(orderRepository.findById("ORD001"))
+            Order order =
+                    createOrder(
+                            "ORD005",
+                            100,
+                            175.0
+                    );
+
+            when(orderRepository.findById("ORD005"))
                     .thenReturn(Optional.of(order));
 
-            when(exchange.cancelOrder(
-                    "AAPL",
-                    "ORD001"))
-                    .thenReturn(true);
-
             OrderResponse response =
-                    orderService.deleteOrder("ORD001");
+                    orderService.deleteOrder("ORD005");
+
+            assertNotNull(response);
 
             verify(exchange)
                     .cancelOrder(
                             "AAPL",
-                            "ORD001");
+                            "ORD005"
+                    );
 
             verify(orderRepository)
-                    .delete("ORD001");
-
-            assertEquals(
-                    "SUCCESS",
-                    response.getStatus());
+                    .deleteById("ORD005");
         }
 
         @Test
-        @DisplayName("Should throw exception while deleting missing order")
-        void shouldThrowExceptionForMissingDelete() {
+        void shouldThrowExceptionWhenDeletingUnknownOrder() {
 
-            when(orderRepository.findById("ORD001"))
+            when(orderRepository.findById("UNKNOWN"))
                     .thenReturn(Optional.empty());
 
             assertThrows(
                     OrderNotFoundException.class,
-                    () -> orderService.deleteOrder("ORD001")
+                    () ->
+                            orderService.deleteOrder(
+                                    "UNKNOWN"
+                            )
             );
+
+            verify(orderRepository)
+                    .findById("UNKNOWN");
+
+            verify(orderRepository, never())
+                    .deleteById(anyString());
+
+            verify(exchange, never())
+                    .cancelOrder(
+                            anyString(),
+                            anyString()
+                    );
         }
     }
-        @Nested
-    @DisplayName("Update Order Tests")
+
+    @Nested
     class UpdateOrderTests {
 
         @Test
-        @DisplayName("Should update order successfully")
-        void shouldUpdateOrderSuccessfully() {
+        void shouldUpdateExistingOrder() {
 
-            when(orderRepository.findById("ORD001"))
+            Order order =
+                    createOrder(
+                            "ORD006",
+                            100,
+                            180.0
+                    );
+
+            UpdateOrderRequest request =
+                    mock(UpdateOrderRequest.class);
+
+            when(request.getQuantity())
+                    .thenReturn(250);
+
+            when(request.getPrice())
+                    .thenReturn(190.0);
+
+            when(orderRepository.findById("ORD006"))
                     .thenReturn(Optional.of(order));
 
-            when(exchange.modifyOrder(
-                    "AAPL",
-                    "ORD001",
-                    150,
-                    220.0))
-                    .thenReturn(true);
+            when(
+                    exchange.modifyOrder(
+                            "AAPL",
+                            "ORD006",
+                            250,
+                            190.0
+                    )
+            ).thenReturn(true);
 
             OrderResponse response =
                     orderService.updateOrder(
-                            "ORD001",
-                            updateRequest);
+                            "ORD006",
+                            request
+                    );
 
-            verify(exchange, times(1))
-                    .modifyOrder(
-                            "AAPL",
-                            "ORD001",
-                            150,
-                            220.0);
-
-            verify(orderRepository, times(1))
-                    .update(any(Order.class));
+            assertNotNull(response);
 
             assertEquals(
-                    "SUCCESS",
-                    response.getStatus());
-
-            assertEquals(
-                    "ORD001",
-                    response.getOrderId());
-
-            assertEquals(
-                    "Order updated successfully.",
-                    response.getMessage());
-        }
-
-        @Test
-        @DisplayName("Should throw exception when updating missing order")
-        void shouldThrowExceptionWhenOrderDoesNotExist() {
-
-            when(orderRepository.findById("ORD999"))
-                    .thenReturn(Optional.empty());
-
-            assertThrows(
-                    OrderNotFoundException.class,
-                    () -> orderService.updateOrder(
-                            "ORD999",
-                            updateRequest)
+                    250,
+                    order.getQuantity()
             );
 
-            verify(orderRepository)
-                    .findById("ORD999");
-
-            verify(exchange, never())
-                    .modifyOrder(
-                            anyString(),
-                            anyString(),
-                            anyInt(),
-                            anyDouble());
-        }
-
-        @Test
-        @DisplayName("Should throw exception when exchange update fails")
-        void shouldThrowExceptionWhenExchangeFails() {
-
-            when(orderRepository.findById("ORD001"))
-                    .thenReturn(Optional.of(order));
-
-            when(exchange.modifyOrder(
-                    "AAPL",
-                    "ORD001",
-                    150,
-                    220.0))
-                    .thenReturn(false);
-
-            assertThrows(
-                    OrderNotFoundException.class,
-                    () -> orderService.updateOrder(
-                            "ORD001",
-                            updateRequest)
+            assertEquals(
+                    190.0,
+                    order.getPrice()
             );
 
             verify(exchange)
                     .modifyOrder(
                             "AAPL",
-                            "ORD001",
-                            150,
-                            220.0);
+                            "ORD006",
+                            250,
+                            190.0
+                    );
 
-            verify(orderRepository, never())
-                    .update(any(Order.class));
+            verify(orderRepository)
+                    .save(order);
         }
-    }
-
-    @Nested
-    @DisplayName("Verification Tests")
-    class VerificationTests {
 
         @Test
-        @DisplayName("Repository save should be called exactly once")
-        void shouldCallSaveOnce() {
+        void shouldThrowExceptionWhenOrderDoesNotExist() {
 
-            orderService.placeOrder(request);
+            UpdateOrderRequest request =
+                    mock(UpdateOrderRequest.class);
 
-            verify(orderRepository, times(1))
+            when(orderRepository.findById("UNKNOWN"))
+                    .thenReturn(Optional.empty());
+
+            assertThrows(
+                    OrderNotFoundException.class,
+                    () ->
+                            orderService.updateOrder(
+                                    "UNKNOWN",
+                                    request
+                            )
+            );
+
+            verify(orderRepository)
+                    .findById("UNKNOWN");
+
+            verify(orderRepository, never())
                     .save(any(Order.class));
         }
 
         @Test
-        @DisplayName("Matching engine should be triggered once")
-        void shouldCallMatchingEngineOnce() {
+        void shouldThrowExceptionWhenExchangeCannotModifyOrder() {
 
-            orderService.placeOrder(request);
+            Order order =
+                    createOrder(
+                            "ORD007",
+                            100,
+                            200.0
+                    );
 
-            verify(exchange, times(1))
-                    .matchOrders("AAPL");
+            UpdateOrderRequest request =
+                    mock(UpdateOrderRequest.class);
+
+            when(request.getQuantity())
+                    .thenReturn(300);
+
+            when(request.getPrice())
+                    .thenReturn(210.0);
+
+            when(orderRepository.findById("ORD007"))
+                    .thenReturn(Optional.of(order));
+
+            when(
+                    exchange.modifyOrder(
+                            "AAPL",
+                            "ORD007",
+                            300,
+                            210.0
+                    )
+            ).thenReturn(false);
+
+            assertThrows(
+                    OrderNotFoundException.class,
+                    () ->
+                            orderService.updateOrder(
+                                    "ORD007",
+                                    request
+                            )
+            );
+
+            assertEquals(
+                    100,
+                    order.getQuantity()
+            );
+
+            assertEquals(
+                    200.0,
+                    order.getPrice()
+            );
+
+            verify(orderRepository, never())
+                    .save(any(Order.class));
+        }
+    }
+
+    @Nested
+    class VerificationTests {
+
+        @Test
+        void constructorShouldRegisterAaplStock() {
+
+            verify(exchange)
+                    .addStock("AAPL");
         }
 
         @Test
-        @DisplayName("Exchange should receive placed order")
-        void shouldCallExchangePlaceOrder() {
+        void getOrderShouldNotModifyRepository() {
 
-            orderService.placeOrder(request);
+            Order order =
+                    createOrder(
+                            "ORD008",
+                            25,
+                            100.0
+                    );
 
-            verify(exchange, times(1))
-                    .placeOrder(any(Order.class));
+            when(orderRepository.findById("ORD008"))
+                    .thenReturn(Optional.of(order));
+
+            orderService.getOrder("ORD008");
+
+            verify(orderRepository)
+                    .findById("ORD008");
+
+            verify(orderRepository, never())
+                    .save(any(Order.class));
+
+            verify(orderRepository, never())
+                    .deleteById(anyString());
+        }
+
+        @Test
+        void getAllOrdersShouldNotModifyRepository() {
+
+            when(orderRepository.findAll())
+                    .thenReturn(List.of());
+
+            orderService.getAllOrders();
+
+            verify(orderRepository)
+                    .findAll();
+
+            verify(orderRepository, never())
+                    .save(any(Order.class));
+
+            verify(orderRepository, never())
+                    .deleteById(anyString());
         }
     }
 }

@@ -1,27 +1,46 @@
 package com.rajkumar.tradematchexchange.model;
 
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+
 import java.time.LocalDateTime;
 
+@Entity
+@Table(name = "orders")
 public class Order {
 
+    @Id
+    @Column(name = "order_id", nullable = false, updatable = false)
     private String orderId;
+
+    @Column(name = "stock_symbol", nullable = false)
     private String stockSymbol;
+
+    @Column(nullable = false)
     private int quantity;
+
+    @Column(nullable = false)
     private double price;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "order_type", nullable = false)
     private OrderType orderType;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "execution_type", nullable = false)
     private OrderExecutionType executionType;
+
+    @Column(nullable = false)
     private LocalDateTime timestamp;
-    public boolean isMarketOrder() {
 
-        return executionType ==
-                OrderExecutionType.MARKET;
+    protected Order() {
+        // Required by JPA
     }
 
-    public boolean isLimitOrder() {
-
-        return executionType ==
-                OrderExecutionType.LIMIT;
-    }
     public Order(
             String orderId,
             String stockSymbol,
@@ -37,6 +56,14 @@ public class Order {
         this.orderType = orderType;
         this.executionType = executionType;
         this.timestamp = LocalDateTime.now();
+    }
+
+    public boolean isMarketOrder() {
+        return executionType == OrderExecutionType.MARKET;
+    }
+
+    public boolean isLimitOrder() {
+        return executionType == OrderExecutionType.LIMIT;
     }
 
     public String getOrderId() {
@@ -59,6 +86,10 @@ public class Order {
         return price;
     }
 
+    public void setPrice(double price) {
+        this.price = price;
+    }
+
     public OrderType getOrderType() {
         return orderType;
     }
@@ -73,7 +104,6 @@ public class Order {
 
     @Override
     public String toString() {
-
         return "Order{" +
                 "orderId='" + orderId + '\'' +
                 ", stockSymbol='" + stockSymbol + '\'' +

@@ -98,7 +98,7 @@ public class OrderService {
                 order.getStockSymbol(),
                 orderId);
 
-        orderRepository.delete(orderId);
+        orderRepository.deleteById(orderId);
 
         return new OrderResponse(
                 "SUCCESS",
@@ -134,8 +134,9 @@ public class OrderService {
         }
 
         order.setQuantity(request.getQuantity());
+        order.setPrice(request.getPrice());
 
-        orderRepository.update(order);
+        orderRepository.save(order);
 
         return new OrderResponse(
                 "SUCCESS",

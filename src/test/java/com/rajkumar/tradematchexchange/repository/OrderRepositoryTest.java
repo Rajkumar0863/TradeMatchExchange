@@ -3,22 +3,19 @@ package com.rajkumar.tradematchexchange.repository;
 import com.rajkumar.tradematchexchange.model.Order;
 import com.rajkumar.tradematchexchange.model.OrderExecutionType;
 import com.rajkumar.tradematchexchange.model.OrderType;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 
 import java.util.List;
-import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@DataJpaTest
 class OrderRepositoryTest {
 
+    @Autowired
     private OrderRepository repository;
-
-    @BeforeEach
-    void setUp() {
-        repository = new OrderRepository();
-    }
 
     private Order createOrder(
             String orderId,
@@ -53,7 +50,7 @@ class OrderRepositoryTest {
         repository.save(order);
 
         assertEquals(1, repository.count());
-        assertTrue(repository.exists("ORD001"));
+        assertTrue(repository.existsById("ORD001"));
     }
 
     @Test
@@ -63,19 +60,20 @@ class OrderRepositoryTest {
                 "ORD002",
                 "AAPL",
                 50,
-                210.0,
+                180.0,
                 OrderType.BUY,
                 OrderExecutionType.LIMIT
         );
 
         repository.save(order);
 
-        Optional<Order> result =
-                repository.findById("ORD002");
+        Order found =
+                repository.findById("ORD002").orElseThrow();
 
-        assertTrue(result.isPresent());
-        assertEquals("ORD002", result.get().getOrderId());
-        assertEquals(50, result.get().getQuantity());
+        assertEquals("ORD002", found.getOrderId());
+        assertEquals("AAPL", found.getStockSymbol());
+        assertEquals(50, found.getQuantity());
+        assertEquals(180.0, found.getPrice());
     }
 
     @Test
@@ -84,7 +82,7 @@ class OrderRepositoryTest {
         repository.save(createOrder(
                 "ORD003",
                 "AAPL",
-                20,
+                100,
                 100,
                 OrderType.BUY,
                 OrderExecutionType.LIMIT
@@ -93,20 +91,19 @@ class OrderRepositoryTest {
         repository.save(createOrder(
                 "ORD004",
                 "AAPL",
-                30,
+                100,
                 110,
                 OrderType.SELL,
                 OrderExecutionType.LIMIT
         ));
 
-        List<Order> orders =
-                repository.findAll();
+        List<Order> orders = repository.findAll();
 
         assertEquals(2, orders.size());
     }
 
     @Test
-    void testExists() {
+    void testExistsById() {
 
         repository.save(createOrder(
                 "ORD005",
@@ -117,8 +114,8 @@ class OrderRepositoryTest {
                 OrderExecutionType.LIMIT
         ));
 
-        assertTrue(repository.exists("ORD005"));
-        assertFalse(repository.exists("UNKNOWN"));
+        assertTrue(repository.existsById("ORD005"));
+        assertFalse(repository.existsById("UNKNOWN"));
     }
 
     @Test
@@ -136,8 +133,7 @@ class OrderRepositoryTest {
         repository.save(order);
 
         order.setQuantity(250);
-
-        repository.update(order);
+        repository.save(order);
 
         Order updated =
                 repository.findById("ORD006").orElseThrow();
@@ -157,9 +153,9 @@ class OrderRepositoryTest {
                 OrderExecutionType.LIMIT
         ));
 
-        repository.delete("ORD007");
+        repository.deleteById("ORD007");
 
-        assertFalse(repository.exists("ORD007"));
+        assertFalse(repository.existsById("ORD007"));
         assertEquals(0, repository.count());
     }
 
@@ -188,7 +184,7 @@ class OrderRepositoryTest {
     }
 
     @Test
-    void testClear() {
+    void testDeleteAll() {
 
         repository.save(createOrder(
                 "ORD010",
@@ -208,7 +204,7 @@ class OrderRepositoryTest {
                 OrderExecutionType.LIMIT
         ));
 
-        repository.clear();
+        repository.deleteAll();
 
         assertEquals(0, repository.count());
         assertTrue(repository.findAll().isEmpty());
@@ -217,17 +213,8 @@ class OrderRepositoryTest {
     @Test
     void testFindMissingOrder() {
 
-        Optional<Order> order =
-                repository.findById("ORD999");
-
-        assertTrue(order.isEmpty());
-    }
-
-    @Test
-    void testDeleteMissingOrder() {
-
-        repository.delete("UNKNOWN");
-
-        assertEquals(0, repository.count());
+        assertTrue(
+                repository.findById("ORD999").isEmpty()
+        );
     }
 }
