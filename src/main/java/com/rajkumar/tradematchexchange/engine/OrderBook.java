@@ -1,14 +1,14 @@
 package com.rajkumar.tradematchexchange.engine;
 
-import java.util.TreeMap;
-
 import com.rajkumar.tradematchexchange.model.Order;
 import com.rajkumar.tradematchexchange.model.OrderExecutionType;
 import com.rajkumar.tradematchexchange.model.OrderType;
 
+import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.PriorityQueue;
+import java.util.TreeMap;
 
 public class OrderBook {
 
@@ -16,69 +16,64 @@ public class OrderBook {
 
     private final PriorityQueue<Order> sellOrders;
 
-
     public OrderBook() {
 
         /*
-         * BUY Priority
+         * BUY priority:
          *
-         * 1. MARKET Orders
-         * 2. Highest Price
-         * 3. Earliest Timestamp
+         * 1. MARKET orders
+         * 2. Highest price
+         * 3. Earliest timestamp
          */
-        buyOrders = new PriorityQueue<>(
-
-                Comparator
-
-                        .comparing(
-                                (Order order) ->
-                                        order.getExecutionType()
-                                                == OrderExecutionType.MARKET
-                        )
-                        .reversed()
-
-                        .thenComparing(
-                                Order::getPrice,
-                                Comparator.reverseOrder()
-                        )
-
-                        .thenComparing(
-                                Order::getTimestamp
-                        )
-        );
+        buyOrders =
+                new PriorityQueue<>(
+                        Comparator
+                                .comparing(
+                                        (Order order) ->
+                                                order.getExecutionType()
+                                                        == OrderExecutionType.MARKET
+                                )
+                                .reversed()
+                                .thenComparing(
+                                        Order::getPrice,
+                                        Comparator.reverseOrder()
+                                )
+                                .thenComparing(
+                                        Order::getTimestamp
+                                )
+                );
 
         /*
-         * SELL Priority
+         * SELL priority:
          *
-         * 1. MARKET Orders
-         * 2. Lowest Price
-         * 3. Earliest Timestamp
+         * 1. MARKET orders
+         * 2. Lowest price
+         * 3. Earliest timestamp
          */
-        sellOrders = new PriorityQueue<>(
-
-                Comparator
-
-                        .comparing(
-                                (Order order) ->
-                                        order.getExecutionType()
-                                                == OrderExecutionType.MARKET
-                        )
-                        .reversed()
-
-                        .thenComparing(
-                                Order::getPrice
-                        )
-
-                        .thenComparing(
-                                Order::getTimestamp
-                        )
-        );
+        sellOrders =
+                new PriorityQueue<>(
+                        Comparator
+                                .comparing(
+                                        (Order order) ->
+                                                order.getExecutionType()
+                                                        == OrderExecutionType.MARKET
+                                )
+                                .reversed()
+                                .thenComparing(
+                                        Order::getPrice
+                                )
+                                .thenComparing(
+                                        Order::getTimestamp
+                                )
+                );
     }
 
     /**
-     * Adds an order to the book.
+     * Adds an order to the appropriate side
+     * of the order book.
      */
-    public void addOrder(Order order) {
+    public void addOrder(
+            Order order) {
 
         if (order == null) {
 
@@ -87,7 +82,8 @@ public class OrderBook {
             );
         }
 
-        if (order.getOrderType() == OrderType.BUY) {
+        if (order.getOrderType()
+                == OrderType.BUY) {
 
             buyOrders.offer(order);
 
@@ -98,9 +94,10 @@ public class OrderBook {
     }
 
     /**
-     * Cancels an order.
+     * Cancels an active order.
      */
-    public boolean cancelOrder(String orderId) {
+    public boolean cancelOrder(
+            String orderId) {
 
         return removeOrder(
                 buyOrders,
@@ -112,14 +109,26 @@ public class OrderBook {
     }
 
     /**
-     * Modifies an order.
+     * Modifies an active order.
+     *
+     * A successful modification loses its
+     * previous time priority.
+     *
+     * The existing Order object is removed from
+     * the PriorityQueue before mutation because
+     * quantity, price and timestamp can affect
+     * queue ordering.
+     *
+     * After modification, the same object is
+     * reinserted with a new timestamp.
+     *
+     * Using the same Order instance also allows
+     * the service/persistence layer to observe
+     * exactly the same modified state.
      */
     public boolean modifyOrder(
-
             String orderId,
-
             int quantity,
-
             double price) {
 
         Order order =
@@ -130,63 +139,72 @@ public class OrderBook {
 
         if (order != null) {
 
-            buyOrders.remove(order);
-
-            buyOrders.offer(
-
-                    new Order(
-
-                            order.getOrderId(),
-
-                            order.getStockSymbol(),
-
-                            quantity,
-
-                            price,
-
-                            order.getOrderType(),
-
-                            order.getExecutionType()
-                    )
+            return modifyOrderInQueue(
+                    buyOrders,
+                    order,
+                    quantity,
+                    price
             );
-
-            return true;
         }
 
-        order = findOrder(
-                sellOrders,
-                orderId
-        );
+        order =
+                findOrder(
+                        sellOrders,
+                        orderId
+                );
 
         if (order != null) {
 
-            sellOrders.remove(order);
-
-            sellOrders.offer(
-
-                    new Order(
-
-                            order.getOrderId(),
-
-                            order.getStockSymbol(),
-
-                            quantity,
-
-                            price,
-
-                            order.getOrderType(),
-
-                            order.getExecutionType()
-                    )
+            return modifyOrderInQueue(
+                    sellOrders,
+                    order,
+                    quantity,
+                    price
             );
-
-            return true;
         }
 
         return false;
     }
+
     /**
-     * Finds an order by ID.
+     * Safely modifies an order that is already
+     * present inside a PriorityQueue.
+     *
+     * Never mutate fields used by the comparator
+     * while the object remains inside the queue.
+     */
+    private boolean modifyOrderInQueue(
+            PriorityQueue<Order> queue,
+            Order order,
+            int quantity,
+            double price) {
+
+        boolean removed =
+                queue.remove(order);
+
+        if (!removed) {
+
+            return false;
+        }
+
+        order.setQuantity(quantity);
+
+        order.setPrice(price);
+
+        /*
+         * Modification resets time priority.
+         */
+        order.setTimestamp(
+                LocalDateTime.now()
+        );
+
+        queue.offer(order);
+
+        return true;
+    }
+
+    /**
+     * Finds an active order by ID.
      */
     private Order findOrder(
             PriorityQueue<Order> queue,
@@ -194,7 +212,9 @@ public class OrderBook {
 
         for (Order order : queue) {
 
-            if (order.getOrderId().equals(orderId)) {
+            if (order.getOrderId()
+                    .equals(orderId)) {
+
                 return order;
             }
         }
@@ -203,7 +223,7 @@ public class OrderBook {
     }
 
     /**
-     * Removes an order safely.
+     * Removes an order safely from a queue.
      */
     private boolean removeOrder(
             PriorityQueue<Order> queue,
@@ -217,7 +237,8 @@ public class OrderBook {
             Order order =
                     iterator.next();
 
-            if (order.getOrderId().equals(orderId)) {
+            if (order.getOrderId()
+                    .equals(orderId)) {
 
                 iterator.remove();
 
@@ -228,33 +249,32 @@ public class OrderBook {
         return false;
     }
 
-    /**
-     * Returns BUY queue.
-     */
     public PriorityQueue<Order> getBuyOrders() {
+
         return buyOrders;
     }
 
-    /**
-     * Returns SELL queue.
-     */
     public PriorityQueue<Order> getSellOrders() {
+
         return sellOrders;
     }
 
     /**
-     * Best Bid.
+     * Returns the best bid.
      */
     public Double getBestBid() {
 
         if (buyOrders.isEmpty()) {
+
             return null;
         }
 
-        Order order = buyOrders.peek();
+        Order order =
+                buyOrders.peek();
 
         if (order.getExecutionType()
                 == OrderExecutionType.MARKET) {
+
             return Double.POSITIVE_INFINITY;
         }
 
@@ -262,72 +282,69 @@ public class OrderBook {
     }
 
     /**
-     * Best Ask.
+     * Returns the best ask.
      */
     public Double getBestAsk() {
 
         if (sellOrders.isEmpty()) {
+
             return null;
         }
 
-        Order order = sellOrders.peek();
+        Order order =
+                sellOrders.peek();
 
         if (order.getExecutionType()
                 == OrderExecutionType.MARKET) {
+
             return 0.0;
         }
 
         return order.getPrice();
     }
 
-    /**
-     * BUY order count.
-     */
     public int getBuyOrderCount() {
+
         return buyOrders.size();
     }
 
-    /**
-     * SELL order count.
-     */
     public int getSellOrderCount() {
+
         return sellOrders.size();
     }
 
-    /**
-     * Checks whether the book is empty.
-     */
     public boolean isEmpty() {
 
         return buyOrders.isEmpty()
                 && sellOrders.isEmpty();
     }
 
-    /**
-     * Clears the book.
-     */
     public void clear() {
 
         buyOrders.clear();
+
         sellOrders.clear();
     }
 
     /**
-     * Prints the current Order Book.
+     * Prints aggregated market depth.
      */
-
     public void printMarketDepth() {
 
-        System.out.println("\n========== MARKET DEPTH ==========");
+        System.out.println(
+                "\n========== MARKET DEPTH =========="
+        );
 
         TreeMap<Double, Integer> buyDepth =
-                new TreeMap<>(Comparator.reverseOrder());
+                new TreeMap<>(
+                        Comparator.reverseOrder()
+                );
 
         TreeMap<Double, Integer> sellDepth =
                 new TreeMap<>();
 
         /*
-         * Aggregate BUY orders
+         * Aggregate BUY orders.
          */
         for (Order order : buyOrders) {
 
@@ -339,7 +356,7 @@ public class OrderBook {
         }
 
         /*
-         * Aggregate SELL orders
+         * Aggregate SELL orders.
          */
         for (Order order : sellOrders) {
 
@@ -354,11 +371,14 @@ public class OrderBook {
 
         if (buyDepth.isEmpty()) {
 
-            System.out.println("No BUY Orders");
+            System.out.println(
+                    "No BUY Orders"
+            );
 
         } else {
 
-            for (var entry : buyDepth.entrySet()) {
+            for (var entry
+                    : buyDepth.entrySet()) {
 
                 System.out.printf(
                         "%.2f x %d%n",
@@ -368,17 +388,22 @@ public class OrderBook {
             }
         }
 
-        System.out.println("\n----------------------------");
+        System.out.println(
+                "\n----------------------------"
+        );
 
         System.out.println("\nSELL");
 
         if (sellDepth.isEmpty()) {
 
-            System.out.println("No SELL Orders");
+            System.out.println(
+                    "No SELL Orders"
+            );
 
         } else {
 
-            for (var entry : sellDepth.entrySet()) {
+            for (var entry
+                    : sellDepth.entrySet()) {
 
                 System.out.printf(
                         "%.2f x %d%n",
@@ -388,33 +413,54 @@ public class OrderBook {
             }
         }
 
-        System.out.println("\n----------------------------");
+        System.out.println(
+                "\n----------------------------"
+        );
 
-        Double bestBid = getBestBid();
-        Double bestAsk = getBestAsk();
+        Double bestBid =
+                getBestBid();
 
-        System.out.println("Best Bid : " + bestBid);
-        System.out.println("Best Ask : " + bestAsk);
+        Double bestAsk =
+                getBestAsk();
 
-        if (bestBid != null && bestAsk != null
-                && bestBid != Double.POSITIVE_INFINITY
+        System.out.println(
+                "Best Bid : " + bestBid
+        );
+
+        System.out.println(
+                "Best Ask : " + bestAsk
+        );
+
+        if (bestBid != null
+                && bestAsk != null
+                && bestBid
+                != Double.POSITIVE_INFINITY
                 && bestAsk != 0.0) {
 
             System.out.println(
-                    "Spread   : " + (bestAsk - bestBid)
+                    "Spread   : "
+                            + (bestAsk - bestBid)
             );
         }
     }
+
+    /**
+     * Prints orders in matching priority order.
+     */
     public void printOrderBook() {
 
         System.out.println(
                 "\n========== ORDER BOOK =========="
         );
 
-        System.out.println("\nBUY ORDERS");
+        System.out.println(
+                "\nBUY ORDERS"
+        );
 
         PriorityQueue<Order> buyCopy =
-                new PriorityQueue<>(buyOrders);
+                new PriorityQueue<>(
+                        buyOrders
+                );
 
         while (!buyCopy.isEmpty()) {
 
@@ -423,10 +469,14 @@ public class OrderBook {
             );
         }
 
-        System.out.println("\nSELL ORDERS");
+        System.out.println(
+                "\nSELL ORDERS"
+        );
 
         PriorityQueue<Order> sellCopy =
-                new PriorityQueue<>(sellOrders);
+                new PriorityQueue<>(
+                        sellOrders
+                );
 
         while (!sellCopy.isEmpty()) {
 
@@ -440,21 +490,27 @@ public class OrderBook {
         );
 
         System.out.println(
-                "Best Bid : " + getBestBid()
+                "Best Bid : "
+                        + getBestBid()
         );
 
         System.out.println(
-                "Best Ask : " + getBestAsk()
+                "Best Ask : "
+                        + getBestAsk()
         );
 
         if (getBestBid() != null
                 && getBestAsk() != null
-                && getBestBid() != Double.POSITIVE_INFINITY
+                && getBestBid()
+                != Double.POSITIVE_INFINITY
                 && getBestAsk() != 0.0) {
 
             System.out.println(
                     "Spread   : "
-                            + (getBestAsk() - getBestBid())
+                            + (
+                            getBestAsk()
+                                    - getBestBid()
+                    )
             );
         }
     }

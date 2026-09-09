@@ -23,32 +23,26 @@ import java.util.stream.Collectors;
 public class OrderService {
 
     private final Exchange exchange;
+
     private final OrderRepository orderRepository;
 
     public OrderService(
             Exchange exchange,
             OrderRepository orderRepository) {
 
-        this.exchange = exchange;
-        this.orderRepository = orderRepository;
+        this.exchange =
+                exchange;
 
-        /*
-         * AAPL is currently the default instrument
-         * supported by the REST order workflow.
-         */
-        exchange.addStock("AAPL");
+        this.orderRepository =
+                orderRepository;
+
+        exchange.addStock(
+                "AAPL"
+        );
     }
 
     /**
      * Places a new order.
-     *
-     * Flow:
-     *
-     * 1. Convert request DTO to domain Order.
-     * 2. Persist the active order.
-     * 3. Submit it to the in-memory exchange.
-     * 4. Run matching.
-     * 5. Synchronise affected orders with PostgreSQL.
      */
     @Transactional
     public OrderResponse placeOrder(
@@ -68,28 +62,14 @@ public class OrderService {
                         )
                 );
 
-        /*
-         * Persist the order before matching.
-         *
-         * If the order is fully executed,
-         * synchronisation below removes it again.
-         */
-        orderRepository.save(order);
+        orderRepository.save(
+                order
+        );
 
-        /*
-         * Add order to the in-memory order book.
-         *
-         * Exchange performs risk validation before
-         * accepting it into the book.
-         */
-        exchange.placeOrder(order);
+        exchange.placeOrder(
+                order
+        );
 
-        /*
-         * Run matching for this instrument.
-         *
-         * MatchingEngine returns only orders whose
-         * state changed during this matching cycle.
-         */
         List<Order> affectedOrders =
                 exchange.matchOrders(
                         order.getStockSymbol()
@@ -108,21 +88,8 @@ public class OrderService {
     }
 
     /**
-     * Synchronises only orders affected by matching.
-     *
-     * If an affected order is still present in the
-     * in-memory book, it remains active and is saved
-     * with its remaining quantity.
-     *
-     * If it is no longer present, it has either been:
-     *
-     * - completely filled
-     * - cancelled by IOC
-     * - rejected/cancelled by FOK
-     * - exhausted as a MARKET order
-     *
-     * and must therefore be removed from active orders
-     * in the database.
+     * Synchronises only orders whose state
+     * changed during matching.
      */
     private void synchronizeAffectedOrders(
             String stockSymbol,
@@ -170,19 +137,12 @@ public class OrderService {
             if (activeOrderIds.contains(
                     affectedOrder.getOrderId())) {
 
-                /*
-                 * Order remains active,
-                 * usually after a partial fill.
-                 */
                 orderRepository.save(
                         affectedOrder
                 );
 
             } else {
 
-                /*
-                 * Order is no longer active.
-                 */
                 orderRepository.deleteById(
                         affectedOrder.getOrderId()
                 );
@@ -191,7 +151,7 @@ public class OrderService {
     }
 
     /**
-     * Returns all currently active orders.
+     * Returns all active orders.
      */
     public List<OrderDto> getAllOrders() {
 
@@ -199,11 +159,13 @@ public class OrderService {
                 .findAll()
                 .stream()
                 .map(OrderDto::new)
-                .collect(Collectors.toList());
+                .collect(
+                        Collectors.toList()
+                );
     }
 
     /**
-     * Returns one active order by ID.
+     * Returns an active order by ID.
      */
     public OrderDto getOrder(
             String orderId) {
@@ -217,11 +179,13 @@ public class OrderService {
                                 )
                         );
 
-        return new OrderDto(order);
+        return new OrderDto(
+                order
+        );
     }
 
     /**
-     * Cancels and deletes an active order.
+     * Cancels an active order.
      */
     @Transactional
     public OrderResponse deleteOrder(
@@ -236,17 +200,11 @@ public class OrderService {
                                 )
                         );
 
-        /*
-         * Remove from the in-memory order book first.
-         */
         exchange.cancelOrder(
                 order.getStockSymbol(),
                 orderId
         );
 
-        /*
-         * Remove from persistent active orders.
-         */
         orderRepository.deleteById(
                 orderId
         );
@@ -259,22 +217,29 @@ public class OrderService {
     }
 
     /**
-     * Modifies quantity and price of an active order.
+     * Modifies an active order.
      *
-     * Current behaviour:
-     * Exchange updates the order in the in-memory
-     * order book and the corresponding persisted
-     * order is then updated.
+     * The Exchange returns the actual modified
+     * order from the in-memory OrderBook.
      *
-     * We will separately verify timestamp /
-     * price-time priority consistency for modification.
+     * That object already contains:
+     *
+     * - updated quantity
+     * - updated price
+     * - new timestamp
+     *
+     * Therefore the same state is persisted.
+     *
+     * This guarantees that restarting the
+     * application does not restore a different
+     * price-time priority.
      */
     @Transactional
     public OrderResponse updateOrder(
             String orderId,
             UpdateOrderRequest request) {
 
-        Order order =
+        Order persistedOrder =
                 orderRepository
                         .findById(orderId)
                         .orElseThrow(() ->
@@ -283,30 +248,29 @@ public class OrderService {
                                 )
                         );
 
-        boolean updated =
+        Order modifiedOrder =
                 exchange.modifyOrder(
-                        order.getStockSymbol(),
+                        persistedOrder.getStockSymbol(),
                         orderId,
                         request.getQuantity(),
                         request.getPrice()
                 );
 
-        if (!updated) {
+        if (modifiedOrder == null) {
 
             throw new OrderNotFoundException(
                     orderId
             );
         }
 
-        order.setQuantity(
-                request.getQuantity()
+        /*
+         * Persist the exact Order instance
+         * currently stored in the in-memory
+         * order book.
+         */
+        orderRepository.save(
+                modifiedOrder
         );
-
-        order.setPrice(
-                request.getPrice()
-        );
-
-        orderRepository.save(order);
 
         return new OrderResponse(
                 "SUCCESS",
