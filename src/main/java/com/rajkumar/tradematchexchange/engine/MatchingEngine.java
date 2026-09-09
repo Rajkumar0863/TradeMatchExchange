@@ -5,6 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
+import java.util.UUID;
 
 import com.rajkumar.tradematchexchange.model.Order;
 import com.rajkumar.tradematchexchange.model.OrderExecutionType;
@@ -12,12 +13,6 @@ import com.rajkumar.tradematchexchange.model.Trade;
 import com.rajkumar.tradematchexchange.repository.TradeRepository;
 
 public class MatchingEngine {
-
-    private long tradeCounter;
-
-    public MatchingEngine() {
-        this.tradeCounter = 1;
-    }
 
     /**
      * Handles IOC and FOK orders after an execution.
@@ -42,21 +37,22 @@ public class MatchingEngine {
 
         if (buyOrder.getExecutionType()
                 == OrderExecutionType.FOK
-                &&
-                buyOrder.getQuantity() > 0) {
+                && buyOrder.getQuantity() > 0) {
 
             buyOrders.remove(buyOrder);
         }
 
         if (sellOrder.getExecutionType()
                 == OrderExecutionType.FOK
-                &&
-                sellOrder.getQuantity() > 0) {
+                && sellOrder.getQuantity() > 0) {
 
             sellOrders.remove(sellOrder);
         }
     }
 
+    /**
+     * Returns total BUY volume.
+     */
     private int totalBuyVolume(
             PriorityQueue<Order> orders) {
 
@@ -69,6 +65,9 @@ public class MatchingEngine {
         return volume;
     }
 
+    /**
+     * Returns total SELL volume.
+     */
     private int totalSellVolume(
             PriorityQueue<Order> orders) {
 
@@ -84,8 +83,9 @@ public class MatchingEngine {
     /**
      * Removes FOK orders that cannot be completely filled.
      *
-     * Removed orders are recorded as affected so that the
-     * persistence layer can remove them from the active-orders table.
+     * Removed orders are recorded as affected so that
+     * the persistence layer can remove them from
+     * the active-orders table.
      */
     private void validateFillOrKill(
             PriorityQueue<Order> buyOrders,
@@ -96,16 +96,17 @@ public class MatchingEngine {
         Order sell = sellOrders.peek();
 
         if (buy != null
-                &&
-                buy.getExecutionType()
-                        == OrderExecutionType.FOK) {
+                && buy.getExecutionType()
+                == OrderExecutionType.FOK) {
 
             if (buy.getQuantity()
                     > totalSellVolume(sellOrders)) {
 
-                Order removed = buyOrders.poll();
+                Order removed =
+                        buyOrders.poll();
 
                 if (removed != null) {
+
                     affectedOrders.put(
                             removed.getOrderId(),
                             removed
@@ -115,16 +116,17 @@ public class MatchingEngine {
         }
 
         if (sell != null
-                &&
-                sell.getExecutionType()
-                        == OrderExecutionType.FOK) {
+                && sell.getExecutionType()
+                == OrderExecutionType.FOK) {
 
             if (sell.getQuantity()
                     > totalBuyVolume(buyOrders)) {
 
-                Order removed = sellOrders.poll();
+                Order removed =
+                        sellOrders.poll();
 
                 if (removed != null) {
+
                     affectedOrders.put(
                             removed.getOrderId(),
                             removed
@@ -137,7 +139,8 @@ public class MatchingEngine {
     /**
      * Core matching loop.
      *
-     * Returns only orders whose state was affected by matching.
+     * Returns only orders whose state
+     * was affected by matching.
      *
      * Supports:
      * - LIMIT Orders
@@ -168,8 +171,11 @@ public class MatchingEngine {
         while (!buyOrders.isEmpty()
                 && !sellOrders.isEmpty()) {
 
-            Order buyOrder = buyOrders.peek();
-            Order sellOrder = sellOrders.peek();
+            Order buyOrder =
+                    buyOrders.peek();
+
+            Order sellOrder =
+                    sellOrders.peek();
 
             if (!canExecute(
                     buyOrder,
@@ -261,7 +267,8 @@ public class MatchingEngine {
     }
 
     /**
-     * Determines whether two orders can match.
+     * Determines whether two orders
+     * can execute against each other.
      */
     private boolean canExecute(
             Order buyOrder,
@@ -283,6 +290,10 @@ public class MatchingEngine {
                 >= sellOrder.getPrice();
     }
 
+    /**
+     * Executes a trade between
+     * the current best BUY and SELL.
+     */
     private void executeTrade(
             Order buyOrder,
             Order sellOrder,
@@ -328,27 +339,29 @@ public class MatchingEngine {
     }
 
     /**
-     * Determines execution price.
+     * Determines the execution price.
      */
     private double determineExecutionPrice(
             Order buyOrder,
             Order sellOrder) {
 
         /*
-         * MARKET vs MARKET
-         * Temporary implementation.
+         * MARKET vs MARKET.
+         *
+         * Temporary behaviour.
+         * We will improve this separately.
          */
         if (buyOrder.getExecutionType()
                 == OrderExecutionType.MARKET
-                &&
-                sellOrder.getExecutionType()
-                        == OrderExecutionType.MARKET) {
+                && sellOrder.getExecutionType()
+                == OrderExecutionType.MARKET) {
 
             return 0.0;
         }
 
         /*
-         * MARKET BUY executes at SELL price.
+         * MARKET BUY executes
+         * at SELL price.
          */
         if (buyOrder.getExecutionType()
                 == OrderExecutionType.MARKET) {
@@ -357,7 +370,8 @@ public class MatchingEngine {
         }
 
         /*
-         * MARKET SELL executes at BUY price.
+         * MARKET SELL executes
+         * at BUY price.
          */
         if (sellOrder.getExecutionType()
                 == OrderExecutionType.MARKET) {
@@ -366,11 +380,16 @@ public class MatchingEngine {
         }
 
         /*
-         * LIMIT vs LIMIT executes at resting SELL price.
+         * LIMIT vs LIMIT executes
+         * at resting SELL price.
          */
         return sellOrder.getPrice();
     }
 
+    /**
+     * Updates remaining quantities
+     * after a successful trade.
+     */
     private void updateOrderQuantities(
             Order buyOrder,
             Order sellOrder,
@@ -394,7 +413,8 @@ public class MatchingEngine {
     }
 
     /**
-     * Removes fully executed or non-resting MARKET orders.
+     * Removes fully executed or
+     * non-resting MARKET orders.
      */
     private void removeCompletedOrders(
             PriorityQueue<Order> buyOrders,
@@ -404,35 +424,49 @@ public class MatchingEngine {
 
         boolean removeBuy =
                 buyOrder.getQuantity() <= 0
-                        ||
-                        buyOrder.getExecutionType()
-                                == OrderExecutionType.MARKET;
+                        || buyOrder.getExecutionType()
+                        == OrderExecutionType.MARKET;
 
         boolean removeSell =
                 sellOrder.getQuantity() <= 0
-                        ||
-                        sellOrder.getExecutionType()
-                                == OrderExecutionType.MARKET;
+                        || sellOrder.getExecutionType()
+                        == OrderExecutionType.MARKET;
 
         if (removeBuy) {
-            buyOrders.remove(buyOrder);
+
+            buyOrders.remove(
+                    buyOrder
+            );
         }
 
         if (removeSell) {
-            sellOrders.remove(sellOrder);
+
+            sellOrders.remove(
+                    sellOrder
+            );
         }
     }
 
+    /**
+     * Generates a globally unique trade ID.
+     *
+     * Unlike the previous JVM-local counter,
+     * UUID-based IDs remain safe across:
+     *
+     * - application restarts
+     * - persisted database records
+     * - multiple application instances
+     */
     private String nextTradeId() {
 
-        return String.format(
-                "TRD%06d",
-                tradeCounter++
-        );
+        return "TRD-"
+                + UUID.randomUUID()
+                .toString()
+                .toUpperCase();
     }
 
     /**
-     * Prints executed trade.
+     * Prints executed trade information.
      */
     private void printTrade(
             Trade trade) {

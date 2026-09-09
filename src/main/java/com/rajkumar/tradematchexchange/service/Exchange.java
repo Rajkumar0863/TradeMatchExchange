@@ -21,7 +21,6 @@ public class Exchange {
     private final RiskManager riskManager;
 
     public Exchange(TradeRepository tradeRepository) {
-
         this.orderBooks = new HashMap<>();
         this.matchingEngine = new MatchingEngine();
         this.tradeRepository = tradeRepository;
@@ -29,8 +28,8 @@ public class Exchange {
     }
 
     /**
-     * Creates an order book for the stock
-     * if one does not already exist.
+     * Creates an order book for a stock if one does not
+     * already exist.
      */
     public void addStock(String stockSymbol) {
 
@@ -49,8 +48,10 @@ public class Exchange {
     }
 
     /**
-     * Validates and places an order into
-     * the in-memory exchange.
+     * Places a new order into the exchange.
+     *
+     * New orders must pass risk validation before
+     * being added to the in-memory order book.
      */
     public void placeOrder(Order order) {
 
@@ -74,13 +75,6 @@ public class Exchange {
             );
         }
 
-        /*
-         * Add the order first.
-         *
-         * Only after the order is successfully
-         * accepted into the book do we register
-         * its ID with the RiskManager.
-         */
         orderBook.addOrder(order);
 
         riskManager.registerOrder(
@@ -89,20 +83,81 @@ public class Exchange {
     }
 
     /**
-     * Runs the matching engine and returns
-     * orders whose state changed.
+     * Restores an already persisted active order
+     * into the in-memory exchange after application startup.
      *
-     * Orders removed from the active book
-     * are also removed from the RiskManager's
-     * active-order registry.
+     * This method intentionally does NOT perform matching
+     * and does NOT write anything to the database.
+     *
+     * The order already exists in PostgreSQL and is only
+     * being reconstructed inside the in-memory OrderBook.
+     */
+    public void restoreOrder(Order order) {
+
+        if (order == null) {
+
+            throw new IllegalArgumentException(
+                    "Cannot restore a null order."
+            );
+        }
+
+        if (order.getQuantity() <= 0) {
+
+            throw new IllegalArgumentException(
+                    "Cannot restore completed order: "
+                            + order.getOrderId()
+            );
+        }
+
+        addStock(
+                order.getStockSymbol()
+        );
+
+        if (riskManager.containsOrder(
+                order.getOrderId())) {
+
+            System.out.println(
+                    "Order already restored : "
+                            + order.getOrderId()
+            );
+
+            return;
+        }
+
+        OrderBook orderBook =
+                orderBooks.get(
+                        order.getStockSymbol()
+                );
+
+        orderBook.addOrder(order);
+
+        riskManager.registerOrder(
+                order.getOrderId()
+        );
+
+        System.out.println(
+                "Restored Order : "
+                        + order.getOrderId()
+                        + " | "
+                        + order.getStockSymbol()
+                        + " | "
+                        + order.getOrderType()
+                        + " | Qty "
+                        + order.getQuantity()
+                        + " | Price "
+                        + order.getPrice()
+        );
+    }
+
+    /**
+     * Executes matching for a stock and returns
+     * only orders whose state changed.
      */
     public List<Order> matchOrders(
             String stockSymbol) {
 
         OrderBook orderBook =
-                orderBooks.get(
-                        stockSymbol
-                );
+                orderBooks.get(stockSymbol);
 
         if (orderBook == null) {
 
@@ -136,7 +191,7 @@ public class Exchange {
 
     /**
      * Checks whether an order still exists
-     * in either side of the active order book.
+     * in either side of the order book.
      */
     private boolean isOrderActive(
             OrderBook orderBook,
@@ -170,9 +225,7 @@ public class Exchange {
             String orderId) {
 
         OrderBook orderBook =
-                orderBooks.get(
-                        stockSymbol
-                );
+                orderBooks.get(stockSymbol);
 
         if (orderBook == null) {
             return false;
@@ -203,9 +256,7 @@ public class Exchange {
             double price) {
 
         OrderBook orderBook =
-                orderBooks.get(
-                        stockSymbol
-                );
+                orderBooks.get(stockSymbol);
 
         if (orderBook == null) {
             return false;
@@ -219,15 +270,13 @@ public class Exchange {
     }
 
     /**
-     * Displays market depth.
+     * Displays aggregated market depth.
      */
     public void displayMarketDepth(
             String stockSymbol) {
 
         OrderBook orderBook =
-                orderBooks.get(
-                        stockSymbol
-                );
+                orderBooks.get(stockSymbol);
 
         if (orderBook == null) {
 
@@ -242,15 +291,13 @@ public class Exchange {
     }
 
     /**
-     * Displays the current order book.
+     * Displays the order book.
      */
     public void displayOrderBook(
             String stockSymbol) {
 
         OrderBook orderBook =
-                orderBooks.get(
-                        stockSymbol
-                );
+                orderBooks.get(stockSymbol);
 
         if (orderBook == null) {
 
@@ -265,7 +312,7 @@ public class Exchange {
     }
 
     /**
-     * Displays persisted trade history.
+     * Displays all persisted trades.
      */
     public void displayTradeHistory() {
 
@@ -290,7 +337,8 @@ public class Exchange {
     }
 
     /**
-     * Displays all listed stocks.
+     * Displays all stock symbols currently
+     * registered with the exchange.
      */
     public void displayStocks() {
 
@@ -306,9 +354,6 @@ public class Exchange {
                 );
     }
 
-    /**
-     * Returns an order book.
-     */
     public OrderBook getOrderBook(
             String stockSymbol) {
 
@@ -317,33 +362,18 @@ public class Exchange {
         );
     }
 
-    /**
-     * Returns the TradeRepository.
-     */
     public TradeRepository getTradeRepository() {
-
         return tradeRepository;
     }
 
-    /**
-     * Returns the MatchingEngine.
-     */
     public MatchingEngine getMatchingEngine() {
-
         return matchingEngine;
     }
 
-    /**
-     * Returns the RiskManager.
-     */
     public RiskManager getRiskManager() {
-
         return riskManager;
     }
 
-    /**
-     * Checks whether a stock exists.
-     */
     public boolean containsStock(
             String stockSymbol) {
 
@@ -352,16 +382,13 @@ public class Exchange {
         );
     }
 
-    /**
-     * Returns total number of stocks.
-     */
     public int totalStocks() {
-
         return orderBooks.size();
     }
 
     /**
-     * Clears exchange state.
+     * Clears all in-memory exchange state
+     * and persisted trades.
      */
     public void clearExchange() {
 
