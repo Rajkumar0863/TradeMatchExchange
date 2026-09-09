@@ -32,11 +32,23 @@ public class OrderService {
         this.exchange = exchange;
         this.orderRepository = orderRepository;
 
+        /*
+         * AAPL is currently the default instrument
+         * supported by the REST order workflow.
+         */
         exchange.addStock("AAPL");
     }
 
     /**
-     * Place a new order.
+     * Places a new order.
+     *
+     * Flow:
+     *
+     * 1. Convert request DTO to domain Order.
+     * 2. Persist the active order.
+     * 3. Submit it to the in-memory exchange.
+     * 4. Run matching.
+     * 5. Synchronise affected orders with PostgreSQL.
      */
     @Transactional
     public OrderResponse placeOrder(
@@ -56,10 +68,28 @@ public class OrderService {
                         )
                 );
 
+        /*
+         * Persist the order before matching.
+         *
+         * If the order is fully executed,
+         * synchronisation below removes it again.
+         */
         orderRepository.save(order);
 
+        /*
+         * Add order to the in-memory order book.
+         *
+         * Exchange performs risk validation before
+         * accepting it into the book.
+         */
         exchange.placeOrder(order);
 
+        /*
+         * Run matching for this instrument.
+         *
+         * MatchingEngine returns only orders whose
+         * state changed during this matching cycle.
+         */
         List<Order> affectedOrders =
                 exchange.matchOrders(
                         order.getStockSymbol()
@@ -78,7 +108,21 @@ public class OrderService {
     }
 
     /**
-     * Synchronise only orders changed during matching.
+     * Synchronises only orders affected by matching.
+     *
+     * If an affected order is still present in the
+     * in-memory book, it remains active and is saved
+     * with its remaining quantity.
+     *
+     * If it is no longer present, it has either been:
+     *
+     * - completely filled
+     * - cancelled by IOC
+     * - rejected/cancelled by FOK
+     * - exhausted as a MARKET order
+     *
+     * and must therefore be removed from active orders
+     * in the database.
      */
     private void synchronizeAffectedOrders(
             String stockSymbol,
@@ -126,12 +170,19 @@ public class OrderService {
             if (activeOrderIds.contains(
                     affectedOrder.getOrderId())) {
 
+                /*
+                 * Order remains active,
+                 * usually after a partial fill.
+                 */
                 orderRepository.save(
                         affectedOrder
                 );
 
             } else {
 
+                /*
+                 * Order is no longer active.
+                 */
                 orderRepository.deleteById(
                         affectedOrder.getOrderId()
                 );
@@ -140,7 +191,7 @@ public class OrderService {
     }
 
     /**
-     * Return all active orders.
+     * Returns all currently active orders.
      */
     public List<OrderDto> getAllOrders() {
 
@@ -152,7 +203,7 @@ public class OrderService {
     }
 
     /**
-     * Find order by ID.
+     * Returns one active order by ID.
      */
     public OrderDto getOrder(
             String orderId) {
@@ -162,8 +213,7 @@ public class OrderService {
                         .findById(orderId)
                         .orElseThrow(() ->
                                 new OrderNotFoundException(
-                                        "Order not found: "
-                                                + orderId
+                                        orderId
                                 )
                         );
 
@@ -171,7 +221,7 @@ public class OrderService {
     }
 
     /**
-     * Delete an order.
+     * Cancels and deletes an active order.
      */
     @Transactional
     public OrderResponse deleteOrder(
@@ -182,16 +232,21 @@ public class OrderService {
                         .findById(orderId)
                         .orElseThrow(() ->
                                 new OrderNotFoundException(
-                                        "Order not found: "
-                                                + orderId
+                                        orderId
                                 )
                         );
 
+        /*
+         * Remove from the in-memory order book first.
+         */
         exchange.cancelOrder(
                 order.getStockSymbol(),
                 orderId
         );
 
+        /*
+         * Remove from persistent active orders.
+         */
         orderRepository.deleteById(
                 orderId
         );
@@ -204,7 +259,15 @@ public class OrderService {
     }
 
     /**
-     * Modify an order.
+     * Modifies quantity and price of an active order.
+     *
+     * Current behaviour:
+     * Exchange updates the order in the in-memory
+     * order book and the corresponding persisted
+     * order is then updated.
+     *
+     * We will separately verify timestamp /
+     * price-time priority consistency for modification.
      */
     @Transactional
     public OrderResponse updateOrder(
@@ -216,8 +279,7 @@ public class OrderService {
                         .findById(orderId)
                         .orElseThrow(() ->
                                 new OrderNotFoundException(
-                                        "Order not found: "
-                                                + orderId
+                                        orderId
                                 )
                         );
 
@@ -232,8 +294,7 @@ public class OrderService {
         if (!updated) {
 
             throw new OrderNotFoundException(
-                    "Unable to modify order: "
-                            + orderId
+                    orderId
             );
         }
 

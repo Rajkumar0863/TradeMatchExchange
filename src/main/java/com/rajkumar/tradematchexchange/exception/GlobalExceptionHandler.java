@@ -2,7 +2,9 @@ package com.rajkumar.tradematchexchange.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
+
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -14,89 +16,150 @@ import java.time.LocalDateTime;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    /**
+     * Handles DTO validation errors caused by @Valid.
+     *
+     * Example:
+     * quantity <= 0
+     * blank order ID
+     * invalid price
+     */
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ApiErrorResponse handleValidationException(
-
+    public ResponseEntity<ApiErrorResponse> handleValidationException(
             MethodArgumentNotValidException ex,
-
             HttpServletRequest request) {
 
-        FieldError fieldError = ex.getBindingResult().getFieldError();
+        FieldError fieldError =
+                ex.getBindingResult()
+                        .getFieldError();
 
-        String message = fieldError != null
-                ? fieldError.getDefaultMessage()
-                : "Validation failed";
+        String message =
+                fieldError != null
+                        ? fieldError.getDefaultMessage()
+                        : "Validation failed.";
 
-        return new ApiErrorResponse(
-                LocalDateTime.now(),
-                HttpStatus.BAD_REQUEST.value(),
+        return buildResponse(
+                HttpStatus.BAD_REQUEST,
                 "Validation Failed",
                 message,
-                request.getRequestURI()
+                request
         );
     }
 
+    /**
+     * Handles requests for orders that do not exist.
+     */
     @ExceptionHandler(OrderNotFoundException.class)
-    public ApiErrorResponse handleOrderNotFound(
-
+    public ResponseEntity<ApiErrorResponse> handleOrderNotFound(
             OrderNotFoundException ex,
-
             HttpServletRequest request) {
 
-        return new ApiErrorResponse(
-                LocalDateTime.now(),
-                HttpStatus.NOT_FOUND.value(),
+        return buildResponse(
+                HttpStatus.NOT_FOUND,
                 "Order Not Found",
                 ex.getMessage(),
-                request.getRequestURI()
+                request
         );
     }
 
+    /**
+     * Handles malformed JSON and invalid enum values.
+     *
+     * Example:
+     * "orderType": "PURCHASE"
+     */
     @ExceptionHandler(HttpMessageNotReadableException.class)
-    public ApiErrorResponse handleInvalidJson(
-
+    public ResponseEntity<ApiErrorResponse> handleInvalidJson(
             HttpMessageNotReadableException ex,
-
             HttpServletRequest request) {
 
-        return new ApiErrorResponse(
-                LocalDateTime.now(),
-                HttpStatus.BAD_REQUEST.value(),
+        return buildResponse(
+                HttpStatus.BAD_REQUEST,
                 "Invalid Request",
                 "Malformed JSON or invalid enum value.",
-                request.getRequestURI()
+                request
         );
     }
 
+    /**
+     * Handles bean constraint violations.
+     */
     @ExceptionHandler(ConstraintViolationException.class)
-    public ApiErrorResponse handleConstraintViolation(
-
+    public ResponseEntity<ApiErrorResponse> handleConstraintViolation(
             ConstraintViolationException ex,
-
             HttpServletRequest request) {
 
-        return new ApiErrorResponse(
-                LocalDateTime.now(),
-                HttpStatus.BAD_REQUEST.value(),
+        return buildResponse(
+                HttpStatus.BAD_REQUEST,
                 "Constraint Violation",
                 ex.getMessage(),
-                request.getRequestURI()
+                request
         );
     }
 
-    @ExceptionHandler(Exception.class)
-    public ApiErrorResponse handleGenericException(
-
-            Exception ex,
-
+    /**
+     * Handles domain/business validation failures.
+     *
+     * Examples:
+     * duplicate order ID
+     * risk validation failure
+     * unsupported stock
+     */
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ApiErrorResponse> handleIllegalArgument(
+            IllegalArgumentException ex,
             HttpServletRequest request) {
 
-        return new ApiErrorResponse(
-                LocalDateTime.now(),
-                HttpStatus.INTERNAL_SERVER_ERROR.value(),
-                "Internal Server Error",
+        return buildResponse(
+                HttpStatus.BAD_REQUEST,
+                "Invalid Order",
                 ex.getMessage(),
-                request.getRequestURI()
+                request
         );
+    }
+
+    /**
+     * Handles unexpected application errors.
+     *
+     * We deliberately avoid returning the raw exception
+     * message to API clients for unexpected failures.
+     */
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ApiErrorResponse> handleGenericException(
+            Exception ex,
+            HttpServletRequest request) {
+
+        return buildResponse(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "Internal Server Error",
+                "An unexpected error occurred.",
+                request
+        );
+    }
+
+    /**
+     * Creates both:
+     *
+     * 1. the correct HTTP status code
+     * 2. the structured JSON error body
+     */
+    private ResponseEntity<ApiErrorResponse> buildResponse(
+            HttpStatus status,
+            String error,
+            String message,
+            HttpServletRequest request) {
+
+        ApiErrorResponse response =
+                new ApiErrorResponse(
+                        LocalDateTime.now(),
+                        status.value(),
+                        error,
+                        message,
+                        request.getRequestURI()
+                );
+
+        return ResponseEntity
+                .status(status)
+                .body(response);
     }
 }
