@@ -1,6 +1,7 @@
 package com.rajkumar.tradematchexchange.engine;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -9,149 +10,41 @@ import java.util.UUID;
 
 import com.rajkumar.tradematchexchange.model.Order;
 import com.rajkumar.tradematchexchange.model.OrderExecutionType;
+import com.rajkumar.tradematchexchange.model.OrderType;
 import com.rajkumar.tradematchexchange.model.Trade;
 import com.rajkumar.tradematchexchange.repository.TradeRepository;
 
 public class MatchingEngine {
 
     /**
-     * Handles IOC and FOK orders after an execution.
-     */
-    private void handleSpecialExecutionTypes(
-            PriorityQueue<Order> buyOrders,
-            PriorityQueue<Order> sellOrders,
-            Order buyOrder,
-            Order sellOrder) {
-
-        if (buyOrder.getExecutionType()
-                == OrderExecutionType.IOC) {
-
-            buyOrders.remove(buyOrder);
-        }
-
-        if (sellOrder.getExecutionType()
-                == OrderExecutionType.IOC) {
-
-            sellOrders.remove(sellOrder);
-        }
-
-        if (buyOrder.getExecutionType()
-                == OrderExecutionType.FOK
-                && buyOrder.getQuantity() > 0) {
-
-            buyOrders.remove(buyOrder);
-        }
-
-        if (sellOrder.getExecutionType()
-                == OrderExecutionType.FOK
-                && sellOrder.getQuantity() > 0) {
-
-            sellOrders.remove(sellOrder);
-        }
-    }
-
-    /**
-     * Returns total BUY volume.
-     */
-    private int totalBuyVolume(
-            PriorityQueue<Order> orders) {
-
-        int volume = 0;
-
-        for (Order order : orders) {
-            volume += order.getQuantity();
-        }
-
-        return volume;
-    }
-
-    /**
-     * Returns total SELL volume.
-     */
-    private int totalSellVolume(
-            PriorityQueue<Order> orders) {
-
-        int volume = 0;
-
-        for (Order order : orders) {
-            volume += order.getQuantity();
-        }
-
-        return volume;
-    }
-
-    /**
-     * Removes FOK orders that cannot be completely filled.
-     *
-     * Removed orders are recorded as affected so that
-     * the persistence layer can remove them from
-     * the active-orders table.
-     */
-    private void validateFillOrKill(
-            PriorityQueue<Order> buyOrders,
-            PriorityQueue<Order> sellOrders,
-            Map<String, Order> affectedOrders) {
-
-        Order buy = buyOrders.peek();
-        Order sell = sellOrders.peek();
-
-        if (buy != null
-                && buy.getExecutionType()
-                == OrderExecutionType.FOK) {
-
-            if (buy.getQuantity()
-                    > totalSellVolume(sellOrders)) {
-
-                Order removed =
-                        buyOrders.poll();
-
-                if (removed != null) {
-
-                    affectedOrders.put(
-                            removed.getOrderId(),
-                            removed
-                    );
-                }
-            }
-        }
-
-        if (sell != null
-                && sell.getExecutionType()
-                == OrderExecutionType.FOK) {
-
-            if (sell.getQuantity()
-                    > totalBuyVolume(buyOrders)) {
-
-                Order removed =
-                        sellOrders.poll();
-
-                if (removed != null) {
-
-                    affectedOrders.put(
-                            removed.getOrderId(),
-                            removed
-                    );
-                }
-            }
-        }
-    }
-
-    /**
      * Core matching loop.
      *
-     * Returns only orders whose state
-     * was affected by matching.
-     *
      * Supports:
-     * - LIMIT Orders
-     * - MARKET Orders
-     * - IOC Orders
-     * - FOK Orders
+     * - LIMIT
+     * - MARKET
+     * - IOC
+     * - FOK
+     * - Partial fills
+     * - Multiple counterparties
      * - Price-Time Priority
+     *
+     * Returns only orders whose state changed during matching.
      */
     public List<Order> match(
             OrderBook orderBook,
             TradeRepository repository) {
+
+        if (orderBook == null) {
+            throw new IllegalArgumentException(
+                    "OrderBook cannot be null."
+            );
+        }
+
+        if (repository == null) {
+            throw new IllegalArgumentException(
+                    "TradeRepository cannot be null."
+            );
+        }
 
         PriorityQueue<Order> buyOrders =
                 orderBook.getBuyOrders();
@@ -162,12 +55,6 @@ public class MatchingEngine {
         Map<String, Order> affectedOrders =
                 new LinkedHashMap<>();
 
-        validateFillOrKill(
-                buyOrders,
-                sellOrders,
-                affectedOrders
-        );
-
         while (!buyOrders.isEmpty()
                 && !sellOrders.isEmpty()) {
 
@@ -177,6 +64,50 @@ public class MatchingEngine {
             Order sellOrder =
                     sellOrders.peek();
 
+            /*
+             * FOK must be completely executable before
+             * the first unit of the order is traded.
+             */
+            if (buyOrder.getExecutionType()
+                    == OrderExecutionType.FOK
+                    && !canFullyFill(
+                    buyOrder,
+                    sellOrders)) {
+
+                Order removed =
+                        buyOrders.poll();
+
+                recordAffected(
+                        affectedOrders,
+                        removed
+                );
+
+                continue;
+            }
+
+            if (sellOrder.getExecutionType()
+                    == OrderExecutionType.FOK
+                    && !canFullyFill(
+                    sellOrder,
+                    buyOrders)) {
+
+                Order removed =
+                        sellOrders.poll();
+
+                recordAffected(
+                        affectedOrders,
+                        removed
+                );
+
+                continue;
+            }
+
+            /*
+             * Best BUY and best SELL do not cross.
+             *
+             * Since the queues use price-time priority,
+             * no lower-priority LIMIT order can cross either.
+             */
             if (!canExecute(
                     buyOrder,
                     sellOrder)) {
@@ -188,60 +119,19 @@ public class MatchingEngine {
                 break;
             }
 
-            try {
-
-                executeTrade(
-                        buyOrder,
-                        sellOrder,
-                        repository
-                );
-
-                affectedOrders.put(
-                        buyOrder.getOrderId(),
-                        buyOrder
-                );
-
-                affectedOrders.put(
-                        sellOrder.getOrderId(),
-                        sellOrder
-                );
-
-            } catch (IllegalStateException exception) {
-
-                System.out.println(
-                        "\nTrade Rejected : "
-                                + exception.getMessage()
-                );
-
-                Order removedBuy =
-                        buyOrders.poll();
-
-                Order removedSell =
-                        sellOrders.poll();
-
-                if (removedBuy != null) {
-
-                    affectedOrders.put(
-                            removedBuy.getOrderId(),
-                            removedBuy
-                    );
-                }
-
-                if (removedSell != null) {
-
-                    affectedOrders.put(
-                            removedSell.getOrderId(),
-                            removedSell
-                    );
-                }
-
-                continue;
-            }
-
-            handleSpecialExecutionTypes(
-                    buyOrders,
-                    sellOrders,
+            executeTrade(
                     buyOrder,
+                    sellOrder,
+                    repository
+            );
+
+            recordAffected(
+                    affectedOrders,
+                    buyOrder
+            );
+
+            recordAffected(
+                    affectedOrders,
                     sellOrder
             );
 
@@ -253,13 +143,26 @@ public class MatchingEngine {
             );
         }
 
-        if (buyOrders.isEmpty()
-                || sellOrders.isEmpty()) {
+        /*
+         * MARKET, IOC and FOK orders are immediate
+         * execution instructions.
+         *
+         * They must never remain resting in the book
+         * after the matching cycle finishes.
+         */
+        removeRemainingImmediateOrders(
+                buyOrders,
+                affectedOrders
+        );
 
-            System.out.println(
-                    "\nMatching Completed."
-            );
-        }
+        removeRemainingImmediateOrders(
+                sellOrders,
+                affectedOrders
+        );
+
+        System.out.println(
+                "\nMatching Completed."
+        );
 
         return new ArrayList<>(
                 affectedOrders.values()
@@ -267,13 +170,17 @@ public class MatchingEngine {
     }
 
     /**
-     * Determines whether two orders
+     * Determines whether a BUY and SELL
      * can execute against each other.
      */
     private boolean canExecute(
             Order buyOrder,
             Order sellOrder) {
 
+        /*
+         * MARKET orders accept available liquidity
+         * without imposing their own price condition.
+         */
         if (buyOrder.getExecutionType()
                 == OrderExecutionType.MARKET) {
 
@@ -286,13 +193,81 @@ public class MatchingEngine {
             return true;
         }
 
+        /*
+         * LIMIT / IOC / FOK orders use their supplied price.
+         */
         return buyOrder.getPrice()
                 >= sellOrder.getPrice();
     }
 
     /**
-     * Executes a trade between
-     * the current best BUY and SELL.
+     * Checks whether an FOK order can be completely
+     * executed against currently available,
+     * price-compatible opposite-side liquidity.
+     */
+    private boolean canFullyFill(
+            Order fokOrder,
+            PriorityQueue<Order> oppositeOrders) {
+
+        long executableVolume = 0;
+
+        for (Order oppositeOrder
+                : oppositeOrders) {
+
+            if (isExecutableAgainst(
+                    fokOrder,
+                    oppositeOrder)) {
+
+                executableVolume +=
+                        oppositeOrder.getQuantity();
+
+                if (executableVolume
+                        >= fokOrder.getQuantity()) {
+
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Determines whether one opposite-side order
+     * provides executable liquidity for an FOK order.
+     */
+    private boolean isExecutableAgainst(
+            Order fokOrder,
+            Order oppositeOrder) {
+
+        if (fokOrder.getOrderType()
+                == OrderType.BUY) {
+
+            /*
+             * A BUY FOK can execute against:
+             * - a SELL MARKET order
+             * - a SELL order priced at or below BUY price
+             */
+            return oppositeOrder.getExecutionType()
+                    == OrderExecutionType.MARKET
+                    || oppositeOrder.getPrice()
+                    <= fokOrder.getPrice();
+        }
+
+        /*
+         * A SELL FOK can execute against:
+         * - a BUY MARKET order
+         * - a BUY order priced at or above SELL price
+         */
+        return oppositeOrder.getExecutionType()
+                == OrderExecutionType.MARKET
+                || oppositeOrder.getPrice()
+                >= fokOrder.getPrice();
+    }
+
+    /**
+     * Executes one trade between the current
+     * best BUY and SELL orders.
      */
     private void executeTrade(
             Order buyOrder,
@@ -327,6 +302,10 @@ public class MatchingEngine {
                         executionPrice
                 );
 
+        /*
+         * Persist the trade before mutating
+         * the order quantities.
+         */
         repository.save(trade);
 
         updateOrderQuantities(
@@ -346,22 +325,26 @@ public class MatchingEngine {
             Order sellOrder) {
 
         /*
-         * MARKET vs MARKET.
+         * MARKET vs MARKET has no price reference.
          *
-         * Temporary behaviour.
-         * We will improve this separately.
+         * Under normal API operation this situation should
+         * not occur because unmatched MARKET orders are
+         * removed immediately instead of resting.
          */
         if (buyOrder.getExecutionType()
                 == OrderExecutionType.MARKET
                 && sellOrder.getExecutionType()
                 == OrderExecutionType.MARKET) {
 
-            return 0.0;
+            throw new IllegalStateException(
+                    "Cannot determine execution price "
+                            + "for MARKET vs MARKET."
+            );
         }
 
         /*
-         * MARKET BUY executes
-         * at SELL price.
+         * MARKET BUY executes against
+         * the SELL order's price.
          */
         if (buyOrder.getExecutionType()
                 == OrderExecutionType.MARKET) {
@@ -370,8 +353,8 @@ public class MatchingEngine {
         }
 
         /*
-         * MARKET SELL executes
-         * at BUY price.
+         * MARKET SELL executes against
+         * the BUY order's price.
          */
         if (sellOrder.getExecutionType()
                 == OrderExecutionType.MARKET) {
@@ -380,15 +363,16 @@ public class MatchingEngine {
         }
 
         /*
-         * LIMIT vs LIMIT executes
-         * at resting SELL price.
+         * Existing simplified exchange rule:
+         * LIMIT/IOC/FOK vs LIMIT/IOC/FOK
+         * executes at the SELL price.
          */
         return sellOrder.getPrice();
     }
 
     /**
-     * Updates remaining quantities
-     * after a successful trade.
+     * Reduces remaining quantities after
+     * a successful execution.
      */
     private void updateOrderQuantities(
             Order buyOrder,
@@ -413,8 +397,11 @@ public class MatchingEngine {
     }
 
     /**
-     * Removes fully executed or
-     * non-resting MARKET orders.
+     * Removes orders that have been completely filled.
+     *
+     * MARKET / IOC / FOK orders with remaining quantity
+     * are deliberately kept until the matching cycle
+     * finishes so they can consume multiple counterparties.
      */
     private void removeCompletedOrders(
             PriorityQueue<Order> buyOrders,
@@ -422,24 +409,14 @@ public class MatchingEngine {
             Order buyOrder,
             Order sellOrder) {
 
-        boolean removeBuy =
-                buyOrder.getQuantity() <= 0
-                        || buyOrder.getExecutionType()
-                        == OrderExecutionType.MARKET;
-
-        boolean removeSell =
-                sellOrder.getQuantity() <= 0
-                        || sellOrder.getExecutionType()
-                        == OrderExecutionType.MARKET;
-
-        if (removeBuy) {
+        if (buyOrder.getQuantity() <= 0) {
 
             buyOrders.remove(
                     buyOrder
             );
         }
 
-        if (removeSell) {
+        if (sellOrder.getQuantity() <= 0) {
 
             sellOrders.remove(
                     sellOrder
@@ -448,14 +425,70 @@ public class MatchingEngine {
     }
 
     /**
-     * Generates a globally unique trade ID.
+     * Removes any unfilled remainder of immediate
+     * execution instructions.
      *
-     * Unlike the previous JVM-local counter,
-     * UUID-based IDs remain safe across:
-     *
-     * - application restarts
-     * - persisted database records
-     * - multiple application instances
+     * LIMIT is the only execution type allowed
+     * to remain resting in the order book.
+     */
+    private void removeRemainingImmediateOrders(
+            PriorityQueue<Order> orders,
+            Map<String, Order> affectedOrders) {
+
+        Iterator<Order> iterator =
+                orders.iterator();
+
+        while (iterator.hasNext()) {
+
+            Order order =
+                    iterator.next();
+
+            if (isImmediateOrder(order)) {
+
+                iterator.remove();
+
+                recordAffected(
+                        affectedOrders,
+                        order
+                );
+            }
+        }
+    }
+
+    /**
+     * MARKET, IOC and FOK are all
+     * immediate execution instructions.
+     */
+    private boolean isImmediateOrder(
+            Order order) {
+
+        return order.getExecutionType()
+                == OrderExecutionType.MARKET
+                || order.getExecutionType()
+                == OrderExecutionType.IOC
+                || order.getExecutionType()
+                == OrderExecutionType.FOK;
+    }
+
+    /**
+     * Records an affected order once by order ID.
+     */
+    private void recordAffected(
+            Map<String, Order> affectedOrders,
+            Order order) {
+
+        if (order == null) {
+            return;
+        }
+
+        affectedOrders.put(
+                order.getOrderId(),
+                order
+        );
+    }
+
+    /**
+     * Generates a restart-safe trade identifier.
      */
     private String nextTradeId() {
 
