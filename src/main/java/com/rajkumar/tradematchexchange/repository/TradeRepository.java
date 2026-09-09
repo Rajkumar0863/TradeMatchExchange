@@ -1,42 +1,10 @@
 package com.rajkumar.tradematchexchange.repository;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-
 import com.rajkumar.tradematchexchange.model.Trade;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
 
-public class TradeRepository {
-
-    private final List<Trade> trades;
-
-    public TradeRepository() {
-
-        this.trades = new ArrayList<>();
-    }
-
-    public void addTrade(Trade trade) {
-
-        trades.add(trade);
-    }
-
-    public List<Trade> getTrades() {
-
-        return Collections.unmodifiableList(trades);
-    }
-
-    public int getTradeCount() {
-
-        return trades.size();
-    }
-
-    public boolean isEmpty() {
-
-        return trades.isEmpty();
-    }
-
-    public void clear() {
-
-        trades.clear();
-    }
+@Repository
+public interface TradeRepository
+        extends JpaRepository<Trade, String> {
 }

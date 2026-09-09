@@ -1,5 +1,9 @@
 package com.rajkumar.tradematchexchange.engine;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.PriorityQueue;
 
 import com.rajkumar.tradematchexchange.model.Order;
@@ -12,26 +16,16 @@ public class MatchingEngine {
     private long tradeCounter;
 
     public MatchingEngine() {
-
         this.tradeCounter = 1;
     }
 
     /**
-     * Core matching loop.
-     *
-     * Supports:
-     * - LIMIT Orders
-     * - MARKET Orders
-     * - Price-Time Priority
+     * Handles IOC and FOK orders after an execution.
      */
     private void handleSpecialExecutionTypes(
-
             PriorityQueue<Order> buyOrders,
-
             PriorityQueue<Order> sellOrders,
-
             Order buyOrder,
-
             Order sellOrder) {
 
         if (buyOrder.getExecutionType()
@@ -87,14 +81,18 @@ public class MatchingEngine {
         return volume;
     }
 
+    /**
+     * Removes FOK orders that cannot be completely filled.
+     *
+     * Removed orders are recorded as affected so that the
+     * persistence layer can remove them from the active-orders table.
+     */
     private void validateFillOrKill(
-
             PriorityQueue<Order> buyOrders,
-
-            PriorityQueue<Order> sellOrders) {
+            PriorityQueue<Order> sellOrders,
+            Map<String, Order> affectedOrders) {
 
         Order buy = buyOrders.peek();
-
         Order sell = sellOrders.peek();
 
         if (buy != null
@@ -105,7 +103,14 @@ public class MatchingEngine {
             if (buy.getQuantity()
                     > totalSellVolume(sellOrders)) {
 
-                buyOrders.poll();
+                Order removed = buyOrders.poll();
+
+                if (removed != null) {
+                    affectedOrders.put(
+                            removed.getOrderId(),
+                            removed
+                    );
+                }
             }
         }
 
@@ -117,11 +122,31 @@ public class MatchingEngine {
             if (sell.getQuantity()
                     > totalBuyVolume(buyOrders)) {
 
-                sellOrders.poll();
+                Order removed = sellOrders.poll();
+
+                if (removed != null) {
+                    affectedOrders.put(
+                            removed.getOrderId(),
+                            removed
+                    );
+                }
             }
         }
     }
-    public void match(
+
+    /**
+     * Core matching loop.
+     *
+     * Returns only orders whose state was affected by matching.
+     *
+     * Supports:
+     * - LIMIT Orders
+     * - MARKET Orders
+     * - IOC Orders
+     * - FOK Orders
+     * - Price-Time Priority
+     */
+    public List<Order> match(
             OrderBook orderBook,
             TradeRepository repository) {
 
@@ -131,9 +156,13 @@ public class MatchingEngine {
         PriorityQueue<Order> sellOrders =
                 orderBook.getSellOrders();
 
+        Map<String, Order> affectedOrders =
+                new LinkedHashMap<>();
+
         validateFillOrKill(
                 buyOrders,
-                sellOrders
+                sellOrders,
+                affectedOrders
         );
 
         while (!buyOrders.isEmpty()
@@ -142,7 +171,9 @@ public class MatchingEngine {
             Order buyOrder = buyOrders.peek();
             Order sellOrder = sellOrders.peek();
 
-            if (!canExecute(buyOrder, sellOrder)) {
+            if (!canExecute(
+                    buyOrder,
+                    sellOrder)) {
 
                 System.out.println(
                         "\nNo More Matchable Orders."
@@ -150,12 +181,23 @@ public class MatchingEngine {
 
                 break;
             }
+
             try {
 
                 executeTrade(
                         buyOrder,
                         sellOrder,
                         repository
+                );
+
+                affectedOrders.put(
+                        buyOrder.getOrderId(),
+                        buyOrder
+                );
+
+                affectedOrders.put(
+                        sellOrder.getOrderId(),
+                        sellOrder
                 );
 
             } catch (IllegalStateException exception) {
@@ -165,12 +207,30 @@ public class MatchingEngine {
                                 + exception.getMessage()
                 );
 
-                buyOrders.poll();
-                sellOrders.poll();
+                Order removedBuy =
+                        buyOrders.poll();
+
+                Order removedSell =
+                        sellOrders.poll();
+
+                if (removedBuy != null) {
+
+                    affectedOrders.put(
+                            removedBuy.getOrderId(),
+                            removedBuy
+                    );
+                }
+
+                if (removedSell != null) {
+
+                    affectedOrders.put(
+                            removedSell.getOrderId(),
+                            removedSell
+                    );
+                }
 
                 continue;
             }
-
 
             handleSpecialExecutionTypes(
                     buyOrders,
@@ -186,33 +246,43 @@ public class MatchingEngine {
                     sellOrder
             );
         }
-        if (buyOrders.isEmpty() || sellOrders.isEmpty()) {
+
+        if (buyOrders.isEmpty()
+                || sellOrders.isEmpty()) {
 
             System.out.println(
                     "\nMatching Completed."
             );
         }
+
+        return new ArrayList<>(
+                affectedOrders.values()
+        );
     }
 
     /**
-     * Determines whether
-     * two orders can match.
+     * Determines whether two orders can match.
      */
     private boolean canExecute(
             Order buyOrder,
             Order sellOrder) {
 
-        if (buyOrder.getExecutionType() == OrderExecutionType.MARKET) {
+        if (buyOrder.getExecutionType()
+                == OrderExecutionType.MARKET) {
+
             return true;
         }
 
-        if (sellOrder.getExecutionType() == OrderExecutionType.MARKET) {
+        if (sellOrder.getExecutionType()
+                == OrderExecutionType.MARKET) {
+
             return true;
         }
 
         return buyOrder.getPrice()
                 >= sellOrder.getPrice();
     }
+
     private void executeTrade(
             Order buyOrder,
             Order sellOrder,
@@ -223,6 +293,7 @@ public class MatchingEngine {
                         buyOrder.getQuantity(),
                         sellOrder.getQuantity()
                 );
+
         if (tradedQuantity <= 0) {
 
             throw new IllegalStateException(
@@ -245,7 +316,7 @@ public class MatchingEngine {
                         executionPrice
                 );
 
-        repository.addTrade(trade);
+        repository.save(trade);
 
         updateOrderQuantities(
                 buyOrder,
@@ -255,6 +326,7 @@ public class MatchingEngine {
 
         printTrade(trade);
     }
+
     /**
      * Determines execution price.
      */
@@ -264,45 +336,47 @@ public class MatchingEngine {
 
         /*
          * MARKET vs MARKET
-         * (Temporary implementation)
+         * Temporary implementation.
          */
-        if (buyOrder.getExecutionType() == OrderExecutionType.MARKET
-                && sellOrder.getExecutionType() == OrderExecutionType.MARKET) {
+        if (buyOrder.getExecutionType()
+                == OrderExecutionType.MARKET
+                &&
+                sellOrder.getExecutionType()
+                        == OrderExecutionType.MARKET) {
 
             return 0.0;
         }
 
         /*
-         * MARKET BUY
-         * Executes at SELL price.
+         * MARKET BUY executes at SELL price.
          */
-        if (buyOrder.getExecutionType() == OrderExecutionType.MARKET) {
+        if (buyOrder.getExecutionType()
+                == OrderExecutionType.MARKET) {
 
             return sellOrder.getPrice();
         }
 
         /*
-         * MARKET SELL
-         * Executes at BUY price.
+         * MARKET SELL executes at BUY price.
          */
-        if (sellOrder.getExecutionType() == OrderExecutionType.MARKET) {
+        if (sellOrder.getExecutionType()
+                == OrderExecutionType.MARKET) {
 
             return buyOrder.getPrice();
         }
 
         /*
-         * LIMIT vs LIMIT
-         * Executes at resting SELL price.
+         * LIMIT vs LIMIT executes at resting SELL price.
          */
         return sellOrder.getPrice();
     }
+
     private void updateOrderQuantities(
             Order buyOrder,
             Order sellOrder,
             int tradedQuantity) {
 
         buyOrder.setQuantity(
-
                 Math.max(
                         0,
                         buyOrder.getQuantity()
@@ -311,7 +385,6 @@ public class MatchingEngine {
         );
 
         sellOrder.setQuantity(
-
                 Math.max(
                         0,
                         sellOrder.getQuantity()
@@ -321,30 +394,26 @@ public class MatchingEngine {
     }
 
     /**
-     * Removes fully executed orders.
+     * Removes fully executed or non-resting MARKET orders.
      */
     private void removeCompletedOrders(
-
             PriorityQueue<Order> buyOrders,
-
             PriorityQueue<Order> sellOrders,
-
             Order buyOrder,
-
             Order sellOrder) {
 
         boolean removeBuy =
-
-                buyOrder.getQuantity() <= 0 ||
-
+                buyOrder.getQuantity() <= 0
+                        ||
                         buyOrder.getExecutionType()
                                 == OrderExecutionType.MARKET;
+
         boolean removeSell =
-
-                sellOrder.getQuantity() <= 0 ||
-
+                sellOrder.getQuantity() <= 0
+                        ||
                         sellOrder.getExecutionType()
                                 == OrderExecutionType.MARKET;
+
         if (removeBuy) {
             buyOrders.remove(buyOrder);
         }
@@ -353,6 +422,7 @@ public class MatchingEngine {
             sellOrders.remove(sellOrder);
         }
     }
+
     private String nextTradeId() {
 
         return String.format(

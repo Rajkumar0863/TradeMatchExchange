@@ -14,18 +14,24 @@ public class RiskManager {
     private final Set<String> orderIds;
 
     public RiskManager() {
-
         orderIds = new HashSet<>();
     }
 
     /**
      * Validates an order before it enters the exchange.
+     *
+     * Important:
+     * Validation does NOT register the order ID.
+     * Registration happens only after the order
+     * is successfully accepted into the exchange.
      */
     public boolean validate(Order order) {
 
         if (order == null) {
 
-            System.out.println("Risk Check Failed : Order is null.");
+            System.out.println(
+                    "Risk Check Failed : Order is null."
+            );
 
             return false;
         }
@@ -33,14 +39,19 @@ public class RiskManager {
         if (order.getOrderId() == null
                 || order.getOrderId().isBlank()) {
 
-            System.out.println("Risk Check Failed : Invalid Order ID.");
+            System.out.println(
+                    "Risk Check Failed : Invalid Order ID."
+            );
 
             return false;
         }
 
-        if (orderIds.contains(order.getOrderId())) {
+        if (orderIds.contains(
+                order.getOrderId())) {
 
-            System.out.println("Risk Check Failed : Duplicate Order ID.");
+            System.out.println(
+                    "Risk Check Failed : Duplicate Order ID."
+            );
 
             return false;
         }
@@ -48,21 +59,28 @@ public class RiskManager {
         if (order.getStockSymbol() == null
                 || order.getStockSymbol().isBlank()) {
 
-            System.out.println("Risk Check Failed : Invalid Stock Symbol.");
+            System.out.println(
+                    "Risk Check Failed : Invalid Stock Symbol."
+            );
 
             return false;
         }
 
         if (order.getQuantity() <= 0) {
 
-            System.out.println("Risk Check Failed : Quantity must be greater than zero.");
+            System.out.println(
+                    "Risk Check Failed : Quantity must be greater than zero."
+            );
 
             return false;
         }
 
-        if (order.getQuantity() > MAX_ORDER_QUANTITY) {
+        if (order.getQuantity()
+                > MAX_ORDER_QUANTITY) {
 
-            System.out.println("Risk Check Failed : Quantity exceeds maximum allowed.");
+            System.out.println(
+                    "Risk Check Failed : Quantity exceeds maximum allowed."
+            );
 
             return false;
         }
@@ -71,34 +89,56 @@ public class RiskManager {
          * LIMIT / IOC / FOK require a valid price.
          * MARKET orders ignore price.
          */
-
-        if (order.getExecutionType() != OrderExecutionType.MARKET) {
+        if (order.getExecutionType()
+                != OrderExecutionType.MARKET) {
 
             if (order.getPrice() <= 0) {
 
-                System.out.println("Risk Check Failed : Invalid limit price.");
+                System.out.println(
+                        "Risk Check Failed : Invalid limit price."
+                );
 
                 return false;
             }
 
-            if (order.getPrice() > MAX_ORDER_PRICE) {
+            if (order.getPrice()
+                    > MAX_ORDER_PRICE) {
 
-                System.out.println("Risk Check Failed : Price exceeds maximum allowed.");
+                System.out.println(
+                        "Risk Check Failed : Price exceeds maximum allowed."
+                );
 
                 return false;
             }
         }
 
-        orderIds.add(order.getOrderId());
-
         return true;
     }
 
     /**
-     * Removes an Order ID from the active registry.
-     * Call this when an order is cancelled or fully executed.
+     * Registers an accepted order ID.
      */
-    public void removeOrder(String orderId) {
+    public void registerOrder(
+            String orderId) {
+
+        if (orderId == null
+                || orderId.isBlank()) {
+
+            throw new IllegalArgumentException(
+                    "Order ID cannot be null or blank."
+            );
+        }
+
+        orderIds.add(orderId);
+    }
+
+    /**
+     * Removes an Order ID from the active registry.
+     * Call this when an order is cancelled,
+     * fully executed, rejected, or no longer active.
+     */
+    public void removeOrder(
+            String orderId) {
 
         orderIds.remove(orderId);
     }
@@ -114,7 +154,8 @@ public class RiskManager {
     /**
      * Checks whether an Order ID already exists.
      */
-    public boolean containsOrder(String orderId) {
+    public boolean containsOrder(
+            String orderId) {
 
         return orderIds.contains(orderId);
     }

@@ -24,7 +24,7 @@ public class MarketStatistics {
      */
     private void calculate(TradeRepository repository) {
 
-        if (repository == null || repository.isEmpty()) {
+        if (repository == null || repository.count() == 0) {
 
             highestPrice = 0.0;
             lowestPrice = 0.0;
@@ -35,14 +35,14 @@ public class MarketStatistics {
             return;
         }
 
-        totalTrades = repository.getTradeCount();
+        totalTrades = Math.toIntExact(repository.count());
 
         highestPrice = Double.NEGATIVE_INFINITY;
         lowestPrice = Double.POSITIVE_INFINITY;
 
         double totalPrice = 0.0;
 
-        for (Trade trade : repository.getTrades()) {
+        for (Trade trade : repository.findAll()) {
 
             int quantity = trade.getQuantity();
             double price = trade.getExecutionPrice();

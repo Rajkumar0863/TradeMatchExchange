@@ -4,6 +4,7 @@ import com.rajkumar.tradematchexchange.dto.OrderDto;
 import com.rajkumar.tradematchexchange.dto.OrderRequest;
 import com.rajkumar.tradematchexchange.dto.OrderResponse;
 import com.rajkumar.tradematchexchange.dto.UpdateOrderRequest;
+import com.rajkumar.tradematchexchange.engine.OrderBook;
 import com.rajkumar.tradematchexchange.exception.OrderNotFoundException;
 import com.rajkumar.tradematchexchange.model.Order;
 import com.rajkumar.tradematchexchange.model.OrderExecutionType;
@@ -23,6 +24,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -45,7 +47,7 @@ class OrderServiceTest {
         );
     }
 
-    private Order createOrder(
+    private Order createBuyOrder(
             String orderId,
             int quantity,
             double price) {
@@ -60,11 +62,26 @@ class OrderServiceTest {
         );
     }
 
+    private Order createSellOrder(
+            String orderId,
+            int quantity,
+            double price) {
+
+        return new Order(
+                orderId,
+                "AAPL",
+                quantity,
+                price,
+                OrderType.SELL,
+                OrderExecutionType.LIMIT
+        );
+    }
+
     @Nested
     class PlaceOrderTests {
 
         @Test
-        void shouldPlaceOrderSuccessfully() {
+        void shouldPlaceUnmatchedOrderSuccessfully() {
 
             OrderRequest request =
                     mock(OrderRequest.class);
@@ -87,6 +104,9 @@ class OrderServiceTest {
             when(request.getExecutionType())
                     .thenReturn("LIMIT");
 
+            when(exchange.matchOrders("AAPL"))
+                    .thenReturn(List.of());
+
             OrderResponse response =
                     orderService.placeOrder(request);
 
@@ -100,6 +120,146 @@ class OrderServiceTest {
 
             verify(exchange)
                     .matchOrders("AAPL");
+
+            verify(orderRepository, never())
+                    .deleteById(anyString());
+        }
+
+        @Test
+        void shouldDeleteFullyFilledOrdersFromRepository() {
+
+            OrderRequest request =
+                    mock(OrderRequest.class);
+
+            when(request.getOrderId())
+                    .thenReturn("BUY1001");
+
+            when(request.getStockSymbol())
+                    .thenReturn("AAPL");
+
+            when(request.getQuantity())
+                    .thenReturn(50);
+
+            when(request.getPrice())
+                    .thenReturn(200.0);
+
+            when(request.getOrderType())
+                    .thenReturn("BUY");
+
+            when(request.getExecutionType())
+                    .thenReturn("LIMIT");
+
+            Order buyOrder =
+                    createBuyOrder(
+                            "BUY1001",
+                            0,
+                            200.0
+                    );
+
+            Order sellOrder =
+                    createSellOrder(
+                            "SELL1001",
+                            0,
+                            195.0
+                    );
+
+            OrderBook orderBook =
+                    new OrderBook();
+
+            when(exchange.matchOrders("AAPL"))
+                    .thenReturn(
+                            List.of(
+                                    buyOrder,
+                                    sellOrder
+                            )
+                    );
+
+            when(exchange.getOrderBook("AAPL"))
+                    .thenReturn(orderBook);
+
+            OrderResponse response =
+                    orderService.placeOrder(request);
+
+            assertNotNull(response);
+
+            verify(orderRepository)
+                    .deleteById("BUY1001");
+
+            verify(orderRepository)
+                    .deleteById("SELL1001");
+        }
+
+        @Test
+        void shouldPersistRemainingQuantityAfterPartialFill() {
+
+            OrderRequest request =
+                    mock(OrderRequest.class);
+
+            when(request.getOrderId())
+                    .thenReturn("BUY2001");
+
+            when(request.getStockSymbol())
+                    .thenReturn("AAPL");
+
+            when(request.getQuantity())
+                    .thenReturn(100);
+
+            when(request.getPrice())
+                    .thenReturn(200.0);
+
+            when(request.getOrderType())
+                    .thenReturn("BUY");
+
+            when(request.getExecutionType())
+                    .thenReturn("LIMIT");
+
+            Order remainingBuy =
+                    createBuyOrder(
+                            "BUY2001",
+                            60,
+                            200.0
+                    );
+
+            Order filledSell =
+                    createSellOrder(
+                            "SELL2001",
+                            0,
+                            195.0
+                    );
+
+            OrderBook orderBook =
+                    new OrderBook();
+
+            orderBook.addOrder(
+                    remainingBuy
+            );
+
+            when(exchange.matchOrders("AAPL"))
+                    .thenReturn(
+                            List.of(
+                                    remainingBuy,
+                                    filledSell
+                            )
+                    );
+
+            when(exchange.getOrderBook("AAPL"))
+                    .thenReturn(orderBook);
+
+            OrderResponse response =
+                    orderService.placeOrder(request);
+
+            assertNotNull(response);
+
+            verify(orderRepository)
+                    .save(remainingBuy);
+
+            verify(orderRepository)
+                    .deleteById("SELL2001");
+
+            assertEquals(
+                    60,
+                    remainingBuy.getQuantity()
+            );
         }
     }
 
@@ -110,7 +270,7 @@ class OrderServiceTest {
         void shouldReturnOrderWhenOrderExists() {
 
             Order order =
-                    createOrder(
+                    createBuyOrder(
                             "ORD002",
                             50,
                             200.0
@@ -151,14 +311,14 @@ class OrderServiceTest {
         void shouldReturnAllOrders() {
 
             Order first =
-                    createOrder(
+                    createBuyOrder(
                             "ORD003",
                             100,
                             150.0
                     );
 
             Order second =
-                    createOrder(
+                    createBuyOrder(
                             "ORD004",
                             200,
                             160.0
@@ -203,7 +363,7 @@ class OrderServiceTest {
         void shouldDeleteExistingOrder() {
 
             Order order =
-                    createOrder(
+                    createBuyOrder(
                             "ORD005",
                             100,
                             175.0
@@ -235,10 +395,7 @@ class OrderServiceTest {
 
             assertThrows(
                     OrderNotFoundException.class,
-                    () ->
-                            orderService.deleteOrder(
-                                    "UNKNOWN"
-                            )
+                    () -> orderService.deleteOrder("UNKNOWN")
             );
 
             verify(orderRepository)
@@ -262,7 +419,7 @@ class OrderServiceTest {
         void shouldUpdateExistingOrder() {
 
             Order order =
-                    createOrder(
+                    createBuyOrder(
                             "ORD006",
                             100,
                             180.0
@@ -330,11 +487,10 @@ class OrderServiceTest {
 
             assertThrows(
                     OrderNotFoundException.class,
-                    () ->
-                            orderService.updateOrder(
-                                    "UNKNOWN",
-                                    request
-                            )
+                    () -> orderService.updateOrder(
+                            "UNKNOWN",
+                            request
+                    )
             );
 
             verify(orderRepository)
@@ -348,7 +504,7 @@ class OrderServiceTest {
         void shouldThrowExceptionWhenExchangeCannotModifyOrder() {
 
             Order order =
-                    createOrder(
+                    createBuyOrder(
                             "ORD007",
                             100,
                             200.0
@@ -377,11 +533,10 @@ class OrderServiceTest {
 
             assertThrows(
                     OrderNotFoundException.class,
-                    () ->
-                            orderService.updateOrder(
-                                    "ORD007",
-                                    request
-                            )
+                    () -> orderService.updateOrder(
+                            "ORD007",
+                            request
+                    )
             );
 
             assertEquals(
@@ -413,7 +568,7 @@ class OrderServiceTest {
         void getOrderShouldNotModifyRepository() {
 
             Order order =
-                    createOrder(
+                    createBuyOrder(
                             "ORD008",
                             25,
                             100.0

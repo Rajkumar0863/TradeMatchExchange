@@ -30,7 +30,7 @@ public final class TradeExporter {
     public static void exportTrades(
             TradeRepository repository) {
 
-        if (repository == null || repository.isEmpty()) {
+        if (repository == null || repository.count() == 0) {
 
             System.out.println("No trades available for export.");
 
@@ -62,7 +62,7 @@ public final class TradeExporter {
 
                 writer.newLine();
 
-                for (Trade trade : repository.getTrades()) {
+                for (Trade trade : repository.findAll()) {
 
                     writer.write(trade.toCsvRow());
 
@@ -77,7 +77,7 @@ public final class TradeExporter {
             System.out.println("Location : "
                     + filePath.toAbsolutePath());
             System.out.println("Trades   : "
-                    + repository.getTradeCount());
+                    + repository.count());
             System.out.println("======================================");
 
         } catch (IOException exception) {
