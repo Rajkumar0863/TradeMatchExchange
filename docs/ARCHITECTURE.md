@@ -487,6 +487,7 @@ Validation failure       -> 400 Bad Request
 Malformed JSON           -> 400 Bad Request
 Invalid argument         -> 400 Bad Request
 Unknown order            -> 404 Not Found
+Duplicate active order   -> 409 Conflict
 Unexpected exception     -> 500 Internal Server Error
 ```
 
@@ -526,7 +527,7 @@ Integration tests
 Current regression suite:
 
 ```text
-68 tests
+70 tests
 0 failures
 0 errors
 ```
