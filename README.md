@@ -40,6 +40,7 @@ The project focuses on correctness of matching behaviour, state consistency, per
 - Cancel orders
 - Maintain order priority correctly after modification
 - Reject invalid order requests
+- Reject duplicate active order IDs with HTTP `409 Conflict`
 
 ### Persistence and Recovery
 
@@ -69,7 +70,7 @@ The project focuses on correctness of matching behaviour, state consistency, per
 - Maven automated build
 - GitHub Actions continuous integration
 
-The current automated test suite contains **68 tests** covering the matching engine, order-book behaviour, persistence, service logic, API behaviour, validation, error handling, and integration flows.
+The current automated test suite contains **70 tests** covering the matching engine, order-book behaviour, persistence, service logic, API behaviour, validation, error handling, and integration flows.
 
 ---
 
@@ -322,6 +323,7 @@ Examples of handled failures include:
 - Malformed JSON
 - Constraint violations
 - Invalid arguments
+- Duplicate active order IDs (`409 Conflict`)
 - Unexpected server errors
 
 ---
@@ -418,7 +420,7 @@ mvn clean test
 Expected result:
 
 ```text
-Tests run: 68
+Tests run: 70
 Failures: 0
 Errors: 0
 Skipped: 0
@@ -498,6 +500,7 @@ Important scenarios covered include:
 - REST request validation
 - HTTP 400 responses
 - HTTP 404 responses
+- HTTP 409 duplicate-order conflicts
 - HTTP 500 handling
 - Create / read / update / delete API flows
 
