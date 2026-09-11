@@ -1,0 +1,282 @@
+package com.rajkumar.tradematchexchange.service;
+
+import com.rajkumar.tradematchexchange.dto.OrderDto;
+import com.rajkumar.tradematchexchange.dto.OrderRequest;
+import com.rajkumar.tradematchexchange.dto.OrderResponse;
+import com.rajkumar.tradematchexchange.dto.UpdateOrderRequest;
+import com.rajkumar.tradematchexchange.engine.OrderBook;
+import com.rajkumar.tradematchexchange.exception.DuplicateOrderException;
+import com.rajkumar.tradematchexchange.exception.OrderNotFoundException;
+import com.rajkumar.tradematchexchange.model.Order;
+import com.rajkumar.tradematchexchange.model.OrderExecutionType;
+import com.rajkumar.tradematchexchange.model.OrderType;
+import com.rajkumar.tradematchexchange.repository.OrderRepository;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+@Service
+public class OrderService {
+
+    private final Exchange exchange;
+    private final OrderRepository orderRepository;
+
+    public OrderService(
+            Exchange exchange,
+            OrderRepository orderRepository) {
+
+        this.exchange = exchange;
+        this.orderRepository = orderRepository;
+
+        exchange.addStock("AAPL");
+    }
+
+    /**
+     * Places a new order.
+     *
+     * Active order IDs must be unique.
+     * Duplicate detection happens before any database
+     * or in-memory exchange state is modified.
+     */
+    @Transactional
+    public OrderResponse placeOrder(
+            OrderRequest request) {
+
+        if (orderRepository.existsById(
+                request.getOrderId())) {
+
+            throw new DuplicateOrderException(
+                    request.getOrderId()
+            );
+        }
+
+        Order order =
+                new Order(
+                        request.getOrderId(),
+                        request.getStockSymbol(),
+                        request.getQuantity(),
+                        request.getPrice(),
+                        OrderType.valueOf(
+                                request.getOrderType()
+                        ),
+                        OrderExecutionType.valueOf(
+                                request.getExecutionType()
+                        )
+                );
+
+        orderRepository.save(order);
+
+        exchange.placeOrder(order);
+
+        List<Order> affectedOrders =
+                exchange.matchOrders(
+                        order.getStockSymbol()
+                );
+
+        synchronizeAffectedOrders(
+                order.getStockSymbol(),
+                affectedOrders
+        );
+
+        return new OrderResponse(
+                "SUCCESS",
+                order.getOrderId(),
+                "Order placed successfully."
+        );
+    }
+
+    /**
+     * Synchronises only orders whose state
+     * changed during matching.
+     */
+    private void synchronizeAffectedOrders(
+            String stockSymbol,
+            List<Order> affectedOrders) {
+
+        if (affectedOrders == null
+                || affectedOrders.isEmpty()) {
+
+            return;
+        }
+
+        OrderBook orderBook =
+                exchange.getOrderBook(
+                        stockSymbol
+                );
+
+        if (orderBook == null) {
+
+            throw new IllegalStateException(
+                    "Order Book not found for stock: "
+                            + stockSymbol
+            );
+        }
+
+        Set<String> activeOrderIds =
+                new HashSet<>();
+
+        orderBook.getBuyOrders()
+                .forEach(order ->
+                        activeOrderIds.add(
+                                order.getOrderId()
+                        )
+                );
+
+        orderBook.getSellOrders()
+                .forEach(order ->
+                        activeOrderIds.add(
+                                order.getOrderId()
+                        )
+                );
+
+        for (Order affectedOrder
+                : affectedOrders) {
+
+            if (activeOrderIds.contains(
+                    affectedOrder.getOrderId())) {
+
+                orderRepository.save(
+                        affectedOrder
+                );
+
+            } else {
+
+                orderRepository.deleteById(
+                        affectedOrder.getOrderId()
+                );
+            }
+        }
+    }
+
+    /**
+     * Returns all active orders.
+     */
+    public List<OrderDto> getAllOrders() {
+
+        return orderRepository
+                .findAll()
+                .stream()
+                .map(OrderDto::new)
+                .collect(
+                        Collectors.toList()
+                );
+    }
+
+    /**
+     * Returns an active order by ID.
+     */
+    public OrderDto getOrder(
+            String orderId) {
+
+        Order order =
+                orderRepository
+                        .findById(orderId)
+                        .orElseThrow(() ->
+                                new OrderNotFoundException(
+                                        orderId
+                                )
+                        );
+
+        return new OrderDto(order);
+    }
+
+    /**
+     * Cancels an active order.
+     */
+    @Transactional
+    public OrderResponse deleteOrder(
+            String orderId) {
+
+        Order order =
+                orderRepository
+                        .findById(orderId)
+                        .orElseThrow(() ->
+                                new OrderNotFoundException(
+                                        orderId
+                                )
+                        );
+
+        exchange.cancelOrder(
+                order.getStockSymbol(),
+                orderId
+        );
+
+        orderRepository.deleteById(
+                orderId
+        );
+
+        return new OrderResponse(
+                "SUCCESS",
+                orderId,
+                "Order cancelled successfully."
+        );
+    }
+
+    /**
+     * Modifies an active order.
+     *
+     * The Exchange returns the actual modified
+     * order from the in-memory OrderBook.
+     *
+     * That object already contains:
+     *
+     * - updated quantity
+     * - updated price
+     * - new timestamp
+     *
+     * Therefore the same state is persisted.
+     *
+     * This guarantees that restarting the
+     * application does not restore a different
+     * price-time priority.
+     */
+    @Transactional
+    public OrderResponse updateOrder(
+            String orderId,
+            UpdateOrderRequest request) {
+
+        Order persistedOrder =
+                orderRepository
+                        .findById(orderId)
+                        .orElseThrow(() ->
+                                new OrderNotFoundException(
+                                        orderId
+                                )
+                        );
+
+        Order modifiedOrder =
+                exchange.modifyOrder(
+                        persistedOrder.getStockSymbol(),
+                        orderId,
+                        request.getQuantity(),
+                        request.getPrice()
+                );
+
+        if (modifiedOrder == null) {
+
+            throw new OrderNotFoundException(
+                    orderId
+            );
+        }
+
+        /*
+         * Persist the exact Order instance
+         * currently stored in the in-memory
+         * order book.
+         */
+        orderRepository.save(
+                modifiedOrder
+        );
+
+        return new OrderResponse(
+                "SUCCESS",
+                orderId,
+                "Order updated successfully."
+        );
+    }
+}
