@@ -5,6 +5,7 @@ import com.rajkumar.tradematchexchange.dto.OrderDto;
 import com.rajkumar.tradematchexchange.dto.OrderRequest;
 import com.rajkumar.tradematchexchange.dto.OrderResponse;
 import com.rajkumar.tradematchexchange.dto.UpdateOrderRequest;
+import com.rajkumar.tradematchexchange.exception.DuplicateOrderException;
 import com.rajkumar.tradematchexchange.exception.OrderNotFoundException;
 import com.rajkumar.tradematchexchange.service.OrderService;
 
@@ -207,11 +208,6 @@ class OrderControllerTest {
         OrderRequest request =
                 validOrderRequest();
 
-        /*
-         * Quantity must be positive.
-         * This should fail DTO validation before
-         * OrderService is called.
-         */
         request.setQuantity(0);
 
         mockMvc.perform(
@@ -461,6 +457,60 @@ class OrderControllerTest {
                                 .value(
                                         "/orders/MISSING"
                                 )
+                );
+    }
+
+    /*
+     * ---------------------------------------------------------
+     * 409 CONFLICT TEST
+     * ---------------------------------------------------------
+     */
+
+    @Test
+    @DisplayName("POST /orders returns real HTTP 409 for duplicate active order ID")
+    void shouldReturnConflictForDuplicateOrder()
+            throws Exception {
+
+        OrderRequest request =
+                validOrderRequest();
+
+        when(orderService.placeOrder(
+                any(OrderRequest.class)))
+                .thenThrow(
+                        new DuplicateOrderException(
+                                "ORD001"
+                        )
+                );
+
+        mockMvc.perform(
+                        post("/orders")
+                                .contentType(
+                                        MediaType.APPLICATION_JSON
+                                )
+                                .content(
+                                        objectMapper.writeValueAsString(
+                                                request
+                                        )
+                                )
+                )
+                .andExpect(status().isConflict())
+                .andExpect(
+                        jsonPath("$.status")
+                                .value(409)
+                )
+                .andExpect(
+                        jsonPath("$.error")
+                                .value("Duplicate Order")
+                )
+                .andExpect(
+                        jsonPath("$.message")
+                                .value(
+                                        "An active order already exists with ID: ORD001"
+                                )
+                )
+                .andExpect(
+                        jsonPath("$.path")
+                                .value("/orders")
                 );
     }
 

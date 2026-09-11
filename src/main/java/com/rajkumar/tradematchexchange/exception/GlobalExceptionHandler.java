@@ -18,11 +18,6 @@ public class GlobalExceptionHandler {
 
     /**
      * Handles DTO validation errors caused by @Valid.
-     *
-     * Example:
-     * quantity <= 0
-     * blank order ID
-     * invalid price
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiErrorResponse> handleValidationException(
@@ -63,10 +58,24 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Handles attempts to create an order using an ID
+     * that already belongs to an active order.
+     */
+    @ExceptionHandler(DuplicateOrderException.class)
+    public ResponseEntity<ApiErrorResponse> handleDuplicateOrder(
+            DuplicateOrderException ex,
+            HttpServletRequest request) {
+
+        return buildResponse(
+                HttpStatus.CONFLICT,
+                "Duplicate Order",
+                ex.getMessage(),
+                request
+        );
+    }
+
+    /**
      * Handles malformed JSON and invalid enum values.
-     *
-     * Example:
-     * "orderType": "PURCHASE"
      */
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiErrorResponse> handleInvalidJson(
@@ -98,12 +107,7 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * Handles domain/business validation failures.
-     *
-     * Examples:
-     * duplicate order ID
-     * risk validation failure
-     * unsupported stock
+     * Handles other domain/business validation failures.
      */
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiErrorResponse> handleIllegalArgument(
@@ -121,8 +125,8 @@ public class GlobalExceptionHandler {
     /**
      * Handles unexpected application errors.
      *
-     * We deliberately avoid returning the raw exception
-     * message to API clients for unexpected failures.
+     * Raw internal exception messages are deliberately
+     * not returned to API clients.
      */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleGenericException(
@@ -138,10 +142,8 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * Creates both:
-     *
-     * 1. the correct HTTP status code
-     * 2. the structured JSON error body
+     * Creates both the HTTP status and
+     * structured JSON error response.
      */
     private ResponseEntity<ApiErrorResponse> buildResponse(
             HttpStatus status,

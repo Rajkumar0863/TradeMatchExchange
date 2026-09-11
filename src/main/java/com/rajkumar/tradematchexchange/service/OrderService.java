@@ -5,6 +5,7 @@ import com.rajkumar.tradematchexchange.dto.OrderRequest;
 import com.rajkumar.tradematchexchange.dto.OrderResponse;
 import com.rajkumar.tradematchexchange.dto.UpdateOrderRequest;
 import com.rajkumar.tradematchexchange.engine.OrderBook;
+import com.rajkumar.tradematchexchange.exception.DuplicateOrderException;
 import com.rajkumar.tradematchexchange.exception.OrderNotFoundException;
 import com.rajkumar.tradematchexchange.model.Order;
 import com.rajkumar.tradematchexchange.model.OrderExecutionType;
@@ -23,30 +24,36 @@ import java.util.stream.Collectors;
 public class OrderService {
 
     private final Exchange exchange;
-
     private final OrderRepository orderRepository;
 
     public OrderService(
             Exchange exchange,
             OrderRepository orderRepository) {
 
-        this.exchange =
-                exchange;
+        this.exchange = exchange;
+        this.orderRepository = orderRepository;
 
-        this.orderRepository =
-                orderRepository;
-
-        exchange.addStock(
-                "AAPL"
-        );
+        exchange.addStock("AAPL");
     }
 
     /**
      * Places a new order.
+     *
+     * Active order IDs must be unique.
+     * Duplicate detection happens before any database
+     * or in-memory exchange state is modified.
      */
     @Transactional
     public OrderResponse placeOrder(
             OrderRequest request) {
+
+        if (orderRepository.existsById(
+                request.getOrderId())) {
+
+            throw new DuplicateOrderException(
+                    request.getOrderId()
+            );
+        }
 
         Order order =
                 new Order(
@@ -62,13 +69,9 @@ public class OrderService {
                         )
                 );
 
-        orderRepository.save(
-                order
-        );
+        orderRepository.save(order);
 
-        exchange.placeOrder(
-                order
-        );
+        exchange.placeOrder(order);
 
         List<Order> affectedOrders =
                 exchange.matchOrders(
@@ -179,9 +182,7 @@ public class OrderService {
                                 )
                         );
 
-        return new OrderDto(
-                order
-        );
+        return new OrderDto(order);
     }
 
     /**
